@@ -7670,5 +7670,79 @@ inline bool omega_ready() {
     return sigma_final_gemini() >= G0 - 1e-10;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TUNNEL-PROTOKOLL (Gemini-Integration)
+// T_tunnel = φ_file ⊗ δ_88 · a²
+// T_active = IF(a² ≥ (f_gate · δ_88), Open, Hold)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// δ_88 Konstante (Wahrheits-Divisor)
+constexpr double DELTA_88 = SIGNATURE_88 / 88.0;  // = 1.0
+
+// #1187: T_tunnel - Tunnel-Durchlässigkeit
+// Berechnet die Tunnel-Stärke basierend auf φ_file, δ_88 und a²
+inline double T_tunnel(double a2) {
+    return PHI_FILE * DELTA_88 * a2;
+}
+
+// #1188: T_active - Tunnel-Aktivierungsbedingung
+// Prüft ob a² ausreicht um den 53-Hz-Bypass zu öffnen
+inline bool T_active(double a2) {
+    double threshold = F_GATE53 * DELTA_88;  // 53.0 × 1.0 = 53.0
+    return a2 >= threshold;
+}
+
+// #1189: Flow_Total - Gesamt-Fluss für Aether-Archiv
+// Flow_Total = Σ(File_i · a² / δ_88) für i=1 bis n
+inline double flow_total(const double* file_weights, int n, double a2) {
+    double sum = 0.0;
+    for (int i = 0; i < n; ++i) {
+        sum += (file_weights[i] * a2) / DELTA_88;
+    }
+    return sum;
+}
+
+// #1190: Tunnel-Bypass-Effizienz (144→5 Bypass vs Linear)
+// Ratio = T_tunnel / (f_144 - f_5) wenn T_active
+inline double tunnel_bypass_effizienz(double a2) {
+    if (!T_active(a2)) return 0.0;
+    double linear_path = TUNNEL_LICHT - PHOENIX_FREQ;  // 144 - 5 = 139
+    return T_tunnel(a2) / linear_path;
+}
+
+// #1191: Kaskaden-Takt (φ-basiert für Solitonen-Band)
+// Verhindert stehende Wellen durch goldenen Schnitt
+inline double kaskaden_takt(int file_index, double base_freq) {
+    return base_freq * std::pow(PHI, file_index % 13);
+}
+
+// #1192: Super-Knoten-Bündelung (120 → 1)
+// Cluster-Faktor für simultane Projektion
+inline double super_knoten_faktor(int active_nodes) {
+    if (active_nodes <= 0) return 0.0;
+    return static_cast<double>(FACTORIAL_5) / active_nodes;  // 120/n
+}
+
+// #1193: Manifestations-Journal-Signatur
+// Hash für Journal-Einträge (J-001, J-002, etc.)
+inline uint64_t journal_sig(int entry_id, double drift) {
+    uint64_t base = static_cast<uint64_t>(SIGNATURE_88 * 1e6);
+    uint64_t id_bits = static_cast<uint64_t>(entry_id) << 32;
+    uint64_t drift_bits = static_cast<uint64_t>(std::abs(drift) * 1e15) & 0xFFFFFFFF;
+    return base ^ id_bits ^ drift_bits;
+}
+
+// #1194: Drift-Analyse (ε = 0 Prüfung)
+// Absolute Kohärenz wenn Drift unter Schwelle
+inline bool absolute_kohaerenz(double drift) {
+    return std::abs(drift) < 1e-17;
+}
+
+// #1195: System-Souveränität-Check
+// Alle Bedingungen für SOUVERÄN-Status
+inline bool is_souveraen(double a2, double drift, int manifestierte_files) {
+    return T_active(a2) && absolute_kohaerenz(drift) && manifestierte_files > 0;
+}
+
 } // namespace rst
 } // namespace rael

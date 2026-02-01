@@ -61,6 +61,7 @@ SOURCES=(
   "$ROOT/src/core/plugin_sdk.cpp"
   "$ROOT/src/core/observability.cpp"
   "$ROOT/src/core/distributed_task.cpp"
+  "$ROOT/src/core/aether_archive.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
