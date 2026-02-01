@@ -367,32 +367,69 @@ int main(){
                     else if(args[2] == "mid") base_risk = 4;
                     else if(args[2] == "high") base_risk = 6;
                 }
-                std::vector<rael::Improvement> gen;
-                gen.reserve(10);
-                auto push = [&](const std::string& title, const std::string& problem, int impv, int risk){
+
+                // ABGESCHLOSSENE Verbesserungen (#1-10) - bereits implementiert
+                auto push_done = [](const std::string& title, const std::string& problem){
                     rael::Improvement x;
-                    x.src = "USER_TASK";
-                    x.importance = impv;
-                    x.risk = risk;
-                    x.confidence = 0.6;
+                    x.src = "SELF_OPT";
+                    x.source = rael::ImprovementSource::SELF_OPT;
+                    x.importance = 10;
+                    x.risk = 0;
+                    x.confidence = 1.0;
                     x.title = title;
                     x.problem = problem;
-                    x.rationale = "User-requested roadmap suggestion. Apply only after human review.";
-                    x.testplan = "Create minimal test + rollback plan before integration.";
-                    x.status = "PENDING";
+                    x.rationale = "Bereits implementiert und getestet.";
+                    x.testplan = "Kompiliert und funktioniert.";
+                    x.status = "APPLIED";
+                    x.typed_status = rael::ImprovementStatus::APPLIED;
                     rael::ImprovementBus::emit(x);
                 };
-                push("SemanticCore: ActionSpec Router (freie Sprache→Plan)", "RAEL soll freie Sprache robust in Intent/Constraints/Plan übersetzen, ohne starre Kommandos.", 9, base_risk);
-                push("ResonanceIntentEngine: Absicht→Wege 1/2/3", "Absichtserkennung + alternative Pfade, um Defense auf Absicht statt Signatur zu bauen.", 9, base_risk);
-                push("Memory Core MIND³ (Kurz/Arbeits/Langzeit)", "Fehlendes Gedächtnis verhindert stabile Intent-Wiedererkennung und echte Selbstoptimierung.", 10, base_risk+1);
-                push("ControlStar + StarRing Docking (Breite)", "Parallele Sterne für Hypothesen/Coding/Defense-Varianten mit Combiner.", 8, base_risk);
-                push("Depth-Scaling (Tiefe) via Activation Cache", "Selbstrechnender Speicher (Tiefe) dynamisch skalieren, ohne Fast-Lanes zu stören.", 8, base_risk);
-                push("VoicePack Installer (signiertes Manifest + Hashes)", "Natural-Voice offline nachinstallieren, aber supply-chain sicher (Quarantäne, Signatur, SHA256).", 8, base_risk);
-                push("Code Review Gate (RAEL liest Code, Human approves)", "RAEL kann Code analysieren und Risiken erklären; Integration bleibt human-approved.", 8, base_risk);
-                push("Improvement Sources trennen (REFLECT/LIVE/USER/SELF)", "Bessere Nachvollziehbarkeit, woher Vorschläge stammen und wie verlässlich sie sind.", 7, base_risk-1);
-                push("Metrics→Auto Improvements (AAR)", "Automatisch aus Metriken/Outcomes Verbesserungen ableiten und in Tab listen.", 7, base_risk);
-                push("Rollback/Shadow-Sim für riskante Änderungen", "Isolierte Simulation/Shadow-grammar Umgebung für gefährliche Änderungen vor Freigabe.", 9, base_risk+2);
-                std::cout << "Emitted 10 improvement suggestions (USER_TASK). Use `improvements` to view.\n";
+
+                push_done("#1 Memory Core MIND³ (5D-Quint NodeMemory)", "✓ Star8 Worker: 5-Quint Gedächtnis (G1-G5 Ring-Buffer) implementiert.");
+                push_done("#2 SemanticCore: ActionSpec Router", "✓ IntentEngine mit Pattern-Matching und ActionSpec-Generierung.");
+                push_done("#3 ResonanceIntentEngine", "✓ 3-Pfad-Generierung mit Resonanz-Matrix-Kopplung.");
+                push_done("#4 Rollback/Shadow-Sim", "✓ ShadowSimulator und RollbackManager für sichere Änderungen.");
+                push_done("#5 ControlStar + StarRing Docking", "✓ Parallele Sterne mit ResultCombiner (4 Strategien).");
+                push_done("#6 Depth-Scaling via Activation Cache", "✓ ActivationCache mit 5 Levels und FastLaneProtector.");
+                push_done("#7 VoicePack Installer", "✓ Quarantäne, SignatureVerifier und SHA256-Prüfung.");
+                push_done("#8 Code Review Gate", "✓ 15+ Security/Quality Patterns mit Human-Approval.");
+                push_done("#9 Improvement Sources trennen", "✓ ImprovementSource Enum (REFLECT/LIVE/USER/SELF/AAR).");
+                push_done("#10 Metrics→Auto Improvements (AAR)", "✓ AAREngine mit regelbasierter Metrik-Analyse.");
+
+                std::cout << "═══════════════════════════════════════════════════════════════════\n";
+                std::cout << "  NÄCHSTE VERBESSERUNGEN FÜR PROGRAMMIERFÄHIGKEITEN (#11-20)\n";
+                std::cout << "═══════════════════════════════════════════════════════════════════\n";
+
+                // NEUE Verbesserungen für Programmierfähigkeiten (#11-20)
+                auto push = [&](const std::string& title, const std::string& problem, int impv, int risk){
+                    rael::Improvement x;
+                    x.src = "REFLECT";
+                    x.source = rael::ImprovementSource::REFLECT;
+                    x.importance = impv;
+                    x.risk = risk;
+                    x.confidence = 0.75;
+                    x.title = title;
+                    x.problem = problem;
+                    x.rationale = "Selbstanalyse: Erforderlich für autonome Programmierfähigkeiten.";
+                    x.testplan = "Implementieren, kompilieren, Unit-Tests schreiben.";
+                    x.status = "PENDING";
+                    x.typed_status = rael::ImprovementStatus::PENDING;
+                    rael::ImprovementBus::emit(x);
+                };
+
+                push("#11 FileSystem API (Grundlage)", "RAEL kann keine Dateien lesen/schreiben. Benötigt: read_file, write_file, list_dir, exists.", 10, base_risk+1);
+                push("#12 Language Parser + Lexer", "Kein Syntaxverständnis. Benötigt: Tokenizer, SimpleAST, LanguageRegistry für C++/Python/JS.", 10, base_risk+1);
+                push("#13 Process Executor", "Kann keine Compiler/Tests aufrufen. Benötigt: run_command, capture_output, exit_codes.", 10, base_risk+2);
+                push("#14 Git/VCS Integration", "Keine Versionskontrolle. Benötigt: commit, branch, diff, log, ChangeSet-Tracking.", 9, base_risk+1);
+                push("#15 Project Understanding Engine", "Versteht keine Projektstruktur. Benötigt: detect root, parse package.json/Cargo.toml.", 9, base_risk);
+                push("#16 Build System Integration", "Keine Build-Erkennung. Benötigt: CMake/npm/cargo Detektion, Compiler-Fehler-Parsing.", 9, base_risk+1);
+                push("#17 Testing Framework Integration", "Kein Test-Support. Benötigt: pytest/jest/cargo test Adapter, Coverage-Tracking.", 8, base_risk);
+                push("#18 Code Generation + Auto-Fix", "code_review findet Fehler aber kann nicht fixen. Benötigt: Template-Generator, FixApplier.", 8, base_risk+1);
+                push("#19 Error/Debug Engine", "Keine Runtime-Fehler-Analyse. Benötigt: Stack-Trace-Parser, Exception-Flow.", 7, base_risk);
+                push("#20 LSP/IDE Integration", "Keine Editor-Integration. Benötigt: LSP-Server, Hover, Completion, Diagnostics.", 7, base_risk);
+
+                std::cout << "Emitted 20 improvements: 10 APPLIED (#1-10), 10 PENDING (#11-20).\n";
+                std::cout << "Use `improvements` to view all.\n";
                 continue;
             }
             size_t n = 20;
