@@ -23,6 +23,9 @@
 #include <vector>
 #include <cwchar>
 
+// Machine Binding für Hardware-Lizenzierung
+#include "rael/machine_binding.h"
+
 // --------------------------
 // Small helpers
 // --------------------------
@@ -242,6 +245,30 @@ struct ImprovementsState {
 };
 
 static ImprovementsState g_impr;
+
+// Forward declaration of UiHandles (needed by functions below)
+struct UiHandles {
+  HWND hwnd{nullptr};
+  HWND hTab{nullptr};
+  HWND hMainLog{nullptr};
+  HWND hChatLog{nullptr};
+  HWND hChatInput{nullptr};
+  HWND hShellInput{nullptr};
+  HWND hBtnSendChat{nullptr};
+  HWND hBtnSendShell{nullptr};
+  HWND hBtnArm{nullptr};
+  HWND hFace{nullptr};
+  HWND hPalette{nullptr};
+  HWND hCanvas{nullptr};
+  HWND hBuilderStats{nullptr};
+  HWND hImprList{nullptr};
+  HWND hImprDetail{nullptr};
+  HWND hImprApprove{nullptr};
+  HWND hImprReject{nullptr};
+  HWND hImprCopy{nullptr};
+};
+
+static UiHandles g_ui;
 
 // Persist as JSONL-ish lines without external deps.
 // Format per line:
@@ -549,32 +576,7 @@ static const wchar_t* kCanvasClass = L"RAEL_CANVAS_WIN";
 static const wchar_t* kFaceClass = L"RAEL_FACE_WIN";
 static const UINT_PTR kTimerPoll = 1001;
 
-struct UiHandles {
-  HWND hwnd{nullptr};
-  HWND hTab{nullptr};
-  HWND hMainLog{nullptr};
-  HWND hChatLog{nullptr};
-  HWND hChatInput{nullptr};
-  HWND hShellInput{nullptr};
-  HWND hBtnSendChat{nullptr};
-  HWND hBtnSendShell{nullptr};
-  HWND hBtnArm{nullptr};
-  HWND hFace{nullptr};
-
-  // BUILDER tab (visual pipeline)
-  HWND hPalette{nullptr};
-  HWND hCanvas{nullptr};
-  HWND hBuilderStats{nullptr};
-
-  // IMPROVEMENTS tab (human-in-the-loop)
-  HWND hImprList{nullptr};
-  HWND hImprDetail{nullptr};
-  HWND hImprApprove{nullptr};
-  HWND hImprReject{nullptr};
-  HWND hImprCopy{nullptr};
-};
-
-static UiHandles g_ui;
+// UiHandles already defined above (forward declaration)
 static UiState g_state;
 static ChildProc g_core;
 
@@ -629,6 +631,7 @@ static void ui_layout(HWND hwnd) {
   int xChat = xLeft + leftW + pad;
   int chatHeaderH = 28;
   int faceH = 150;
+  int chatInputH = 26;
   int hChatLog = H - pad*4 - chatHeaderH - faceH - chatInputH;
 
   // arm button in header
@@ -900,6 +903,15 @@ static void ui_send_chat() {
   std::string cmd = "say " + msg;
   face_start_speaking_heuristic(msg, g_ui.hwnd);
   child_send(g_core, cmd);
+}
+
+static void ui_set_arm_button() {
+  if (!g_ui.hBtnArm) return;
+  if (g_state.mode == Mode::Armed) {
+    SetWindowTextW(g_ui.hBtnArm, L"ARMED (click to lock)");
+  } else {
+    SetWindowTextW(g_ui.hBtnArm, L"ARM (locked)");
+  }
 }
 
 static void ui_toggle_arm() {
@@ -1636,6 +1648,101 @@ case WM_TIMER:
 }
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nCmdShow) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MACHINE BINDING CHECK - Hardware-Lizenzprüfung beim Start
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    using namespace rael::machine;
+    BindingStatus status = check_binding();
+
+    switch (status) {
+      case BindingStatus::NOT_BOUND: {
+        // Erster Start - Binding-Bestätigung anfordern
+        MachineFingerprint fp;
+        fp.collect();
+
+        std::wstring msg = L"═══════════════════════════════════════════════════\n";
+        msg += L"  RAEL V49 — ERSTER START\n";
+        msg += L"═══════════════════════════════════════════════════\n\n";
+        msg += L"Diese Software wird beim ersten Start an Ihre\n";
+        msg += L"Hardware gebunden (Machine-Binding).\n\n";
+        msg += L"Computer: " + widen(fp.computer_name) + L"\n";
+        msg += L"Benutzer: " + widen(fp.username) + L"\n";
+        msg += L"Fingerprint: " + widen(fp.combined_hash.substr(0, 24)) + L"...\n\n";
+        msg += L"Nach der Bindung kann die Software nur auf\n";
+        msg += L"diesem Computer ausgeführt werden.\n\n";
+        msg += L"Möchten Sie fortfahren und die Bindung durchführen?";
+
+        int result = MessageBoxW(nullptr, msg.c_str(),
+                                  L"RAEL V49 — Machine Binding",
+                                  MB_YESNO | MB_ICONQUESTION);
+
+        if (result != IDYES) {
+          MessageBoxW(nullptr,
+                       L"Bindung abgebrochen.\nDie Software wird beendet.",
+                       L"RAEL V49", MB_OK | MB_ICONINFORMATION);
+          return 0;
+        }
+
+        // Binding durchführen
+        if (perform_first_binding()) {
+          MessageBoxW(nullptr,
+                       L"✓ Machine-Binding erfolgreich!\n\n"
+                       L"Die Software ist jetzt an diese Hardware gebunden.\n"
+                       L"RAEL Cockpit wird gestartet...",
+                       L"RAEL V49 — Bindung Erfolgreich",
+                       MB_OK | MB_ICONINFORMATION);
+        } else {
+          MessageBoxW(nullptr,
+                       L"✗ Fehler bei der Bindung.\n\n"
+                       L"Die Lizenzdatei konnte nicht erstellt werden.\n"
+                       L"Bitte prüfen Sie die Schreibrechte.",
+                       L"RAEL V49 — Fehler",
+                       MB_OK | MB_ICONERROR);
+          return 1;
+        }
+        break;
+      }
+
+      case BindingStatus::BOUND_VALID:
+        // Alles OK - weiter zum Hauptfenster
+        break;
+
+      case BindingStatus::BOUND_INVALID: {
+        MachineFingerprint fp;
+        fp.collect();
+
+        std::wstring msg = L"═══════════════════════════════════════════════════\n";
+        msg += L"  RAEL V49 — HARDWARE MISMATCH\n";
+        msg += L"═══════════════════════════════════════════════════\n\n";
+        msg += L"Diese Software ist an eine andere Hardware gebunden.\n\n";
+        msg += L"Aktuelle Hardware:\n";
+        msg += L"  Computer: " + widen(fp.computer_name) + L"\n";
+        msg += L"  Hash: " + widen(fp.combined_hash.substr(0, 16)) + L"...\n\n";
+        msg += L"Die Ausführung ist auf diesem Computer nicht erlaubt.";
+
+        MessageBoxW(nullptr, msg.c_str(),
+                     L"RAEL V49 — Zugriff Verweigert",
+                     MB_OK | MB_ICONERROR);
+        return 1;
+      }
+
+      case BindingStatus::LICENSE_CORRUPTED: {
+        MessageBoxW(nullptr,
+                     L"Die Lizenzdatei ist beschädigt.\n\n"
+                     L"Bitte löschen Sie die Datei und starten Sie neu:\n"
+                     L"%LOCALAPPDATA%\\RAEL\\rael_license.dat",
+                     L"RAEL V49 — Lizenz Beschädigt",
+                     MB_OK | MB_ICONWARNING);
+        return 1;
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GUI INITIALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+
   // Canvas class (BUILDER)
   {
     WNDCLASSEXW cc{};
