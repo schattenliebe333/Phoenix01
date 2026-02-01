@@ -1,5 +1,6 @@
 // RAEL V49 - REST/GraphQL API Server Implementation
 #include "rael/api_server.h"
+#include "rael/sha256.h"
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
@@ -262,15 +263,75 @@ std::string JWTAuth::generate(const JWTClaims& claims) {
     std::string header_b64 = base64_encode(header);
     std::string payload_b64 = base64_encode(payload.str());
 
-    // Signature (simplified HMAC simulation)
+    // REAL HMAC-SHA256 signature (RFC 2104 compliant)
     std::string sign_input = header_b64 + "." + payload_b64;
-    std::string signature;
-    for (size_t i = 0; i < sign_input.size(); i++) {
-        signature += static_cast<char>((sign_input[i] ^ secret_[i % secret_.size()]) % 256);
+
+    // Prepare key - pad or hash to 64 bytes (SHA256 block size)
+    std::string key = secret_;
+    if (key.size() > 64) {
+        auto hash = SHA256::digest(key);
+        key = std::string(hash.begin(), hash.end());
     }
+    key.resize(64, 0);
+
+    // Inner and outer padding
+    std::string inner_key(64, 0);
+    std::string outer_key(64, 0);
+    for (size_t i = 0; i < 64; i++) {
+        inner_key[i] = key[i] ^ 0x36;
+        outer_key[i] = key[i] ^ 0x5c;
+    }
+
+    // HMAC = H(outer_key || H(inner_key || message))
+    std::vector<uint8_t> inner_data(inner_key.begin(), inner_key.end());
+    inner_data.insert(inner_data.end(), sign_input.begin(), sign_input.end());
+    auto inner_hash = SHA256::digest(inner_data);
+
+    std::vector<uint8_t> outer_data(outer_key.begin(), outer_key.end());
+    outer_data.insert(outer_data.end(), inner_hash.begin(), inner_hash.end());
+    auto hmac = SHA256::digest(outer_data);
+
+    // Base64URL encode signature (JWT requires URL-safe base64)
+    std::string signature(hmac.begin(), hmac.end());
     std::string sig_b64 = base64_encode(signature);
+    // Convert to URL-safe base64
+    for (char& c : sig_b64) {
+        if (c == '+') c = '-';
+        else if (c == '/') c = '_';
+    }
+    // Remove padding
+    while (!sig_b64.empty() && sig_b64.back() == '=') sig_b64.pop_back();
 
     return header_b64 + "." + payload_b64 + "." + sig_b64;
+}
+
+static std::string base64_decode(const std::string& encoded) {
+    static const std::string chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    // Convert URL-safe base64 to standard
+    std::string input = encoded;
+    for (char& c : input) {
+        if (c == '-') c = '+';
+        else if (c == '_') c = '/';
+    }
+    // Add padding if needed
+    while (input.size() % 4 != 0) input += '=';
+
+    std::string decoded;
+    int val = 0, bits = -8;
+    for (unsigned char c : input) {
+        if (c == '=') break;
+        size_t pos = chars.find(c);
+        if (pos == std::string::npos) continue;
+        val = (val << 6) + static_cast<int>(pos);
+        bits += 6;
+        if (bits >= 0) {
+            decoded += static_cast<char>((val >> bits) & 0xFF);
+            bits -= 8;
+        }
+    }
+    return decoded;
 }
 
 std::optional<JWTClaims> JWTAuth::verify(const std::string& token) const {
@@ -284,10 +345,74 @@ std::optional<JWTClaims> JWTAuth::verify(const std::string& token) const {
 
     if (parts.size() != 3) return std::nullopt;
 
-    // Simplified verification (in production, use proper HMAC)
+    // REAL HMAC-SHA256 verification
+    std::string sign_input = parts[0] + "." + parts[1];
+
+    // Compute expected signature using HMAC-SHA256
+    std::string key = secret_;
+    if (key.size() > 64) {
+        auto hash = SHA256::digest(key);
+        key = std::string(hash.begin(), hash.end());
+    }
+    key.resize(64, 0);
+
+    std::string inner_key(64, 0);
+    std::string outer_key(64, 0);
+    for (size_t i = 0; i < 64; i++) {
+        inner_key[i] = key[i] ^ 0x36;
+        outer_key[i] = key[i] ^ 0x5c;
+    }
+
+    std::vector<uint8_t> inner_data(inner_key.begin(), inner_key.end());
+    inner_data.insert(inner_data.end(), sign_input.begin(), sign_input.end());
+    auto inner_hash = SHA256::digest(inner_data);
+
+    std::vector<uint8_t> outer_data(outer_key.begin(), outer_key.end());
+    outer_data.insert(outer_data.end(), inner_hash.begin(), inner_hash.end());
+    auto expected_hmac = SHA256::digest(outer_data);
+
+    // Decode provided signature
+    std::string provided_sig = base64_decode(parts[2]);
+    std::vector<uint8_t> provided_hmac(provided_sig.begin(), provided_sig.end());
+
+    // Constant-time comparison to prevent timing attacks
+    if (provided_hmac.size() != expected_hmac.size()) return std::nullopt;
+    int diff = 0;
+    for (size_t i = 0; i < expected_hmac.size(); i++) {
+        diff |= expected_hmac[i] ^ provided_hmac[i];
+    }
+    if (diff != 0) return std::nullopt;
+
+    // Parse payload claims
+    std::string payload = base64_decode(parts[1]);
     JWTClaims claims;
-    claims.sub = "user";  // Would parse from payload
-    claims.iss = issuer_;
+
+    // Parse sub
+    auto sub = JSON::get_string(payload, "sub");
+    if (sub) claims.sub = *sub;
+
+    // Parse iss
+    auto parsed_iss = JSON::get_string(payload, "iss");
+    if (parsed_iss) claims.iss = *parsed_iss;
+
+    // Verify issuer matches
+    if (claims.iss != issuer_) return std::nullopt;
+
+    // Parse exp
+    auto exp = JSON::get_number(payload, "exp");
+    if (exp) claims.exp = static_cast<int64_t>(*exp);
+
+    // Parse iat
+    auto iat = JSON::get_number(payload, "iat");
+    if (iat) claims.iat = static_cast<int64_t>(*iat);
+
+    // Parse aud
+    auto aud = JSON::get_string(payload, "aud");
+    if (aud) claims.aud = *aud;
+
+    // Parse jti
+    auto jti = JSON::get_string(payload, "jti");
+    if (jti) claims.jti = *jti;
 
     return claims;
 }
