@@ -58,10 +58,17 @@ static void emit_completed(){
               "✓ ImprovementSource Enum (REFLECT/LIVE/USER/SELF/AAR) implementiert.");
     push_done("#10 Metrics→Auto Improvements (AAR)",
               "✓ AAREngine mit regelbasierter Metrik-Analyse implementiert.");
+    // PROGRAMMIER-GRUNDLAGEN (#11-13) - JETZT IMPLEMENTIERT
+    push_done("#11 FileSystem API (Grundlage)",
+              "✓ FileSystem-Klasse mit read_file, write_file, list_dir, glob, sandbox implementiert.");
+    push_done("#12 Language Parser + Lexer",
+              "✓ Lexer, SimpleParser, CodeStructureAnalyzer für C++/Python/JS/Rust/Go/Java implementiert.");
+    push_done("#13 Process Executor",
+              "✓ ProcessExecutor, BuildSystem, TestRunner mit Compiler-Diagnostik implementiert.");
 }
 
 static void emit_top10(int base_risk){
-    // NEUE Verbesserungen für Programmierfähigkeiten (#11-20)
+    // NEUE Verbesserungen für Programmierfähigkeiten (#14-20)
     auto push = [&](const std::string& title, const std::string& problem, int impv, int risk){
         Improvement x;
         x.src = "REFLECT";
@@ -78,19 +85,10 @@ static void emit_top10(int base_risk){
         ImprovementBus::emit(x);
     };
 
-    // Zeige zuerst die abgeschlossenen
+    // Zeige zuerst die abgeschlossenen (#1-13)
     emit_completed();
 
-    // Dann die neuen Vorschläge für Programmierfähigkeiten
-    push("#11 FileSystem API (Grundlage)",
-         "RAEL kann keine Dateien lesen/schreiben. Benötigt: read_file, write_file, list_dir, exists, create_dir.",
-         10, base_risk+1);
-    push("#12 Language Parser + Lexer",
-         "Kein Syntaxverständnis für Code. Benötigt: Tokenizer, SimpleAST, LanguageRegistry für C++/Python/JS.",
-         10, base_risk+1);
-    push("#13 Process Executor",
-         "Kann keine Compiler/Tests aufrufen. Benötigt: run_command, capture_output, exit_code Handling.",
-         10, base_risk+2);
+    // Dann die neuen Vorschläge für Programmierfähigkeiten (#14-20)
     push("#14 Git/VCS Integration",
          "Keine Versionskontrolle. Benötigt: commit, branch, diff, log, merge, ChangeSet-Tracking.",
          9, base_risk+1);

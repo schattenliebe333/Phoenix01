@@ -38,6 +38,9 @@ SOURCES=(
   "$ROOT/src/core/depth_scaling.cpp"
   "$ROOT/src/core/voicepack.cpp"
   "$ROOT/src/core/code_review.cpp"
+  "$ROOT/src/core/filesystem.cpp"
+  "$ROOT/src/core/parser.cpp"
+  "$ROOT/src/core/executor.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 

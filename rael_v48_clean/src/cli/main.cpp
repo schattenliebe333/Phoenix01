@@ -396,11 +396,16 @@ int main(){
                 push_done("#9 Improvement Sources trennen", "✓ ImprovementSource Enum (REFLECT/LIVE/USER/SELF/AAR).");
                 push_done("#10 Metrics→Auto Improvements (AAR)", "✓ AAREngine mit regelbasierter Metrik-Analyse.");
 
+                // PROGRAMMIER-GRUNDLAGEN (#11-13) - JETZT IMPLEMENTIERT
+                push_done("#11 FileSystem API (Grundlage)", "✓ FileSystem-Klasse mit read_file, write_file, list_dir, glob, sandbox implementiert.");
+                push_done("#12 Language Parser + Lexer", "✓ Lexer, SimpleParser, CodeStructureAnalyzer für C++/Python/JS/Rust/Go/Java implementiert.");
+                push_done("#13 Process Executor", "✓ ProcessExecutor, BuildSystem, TestRunner mit Compiler-Diagnostik implementiert.");
+
                 std::cout << "═══════════════════════════════════════════════════════════════════\n";
-                std::cout << "  NÄCHSTE VERBESSERUNGEN FÜR PROGRAMMIERFÄHIGKEITEN (#11-20)\n";
+                std::cout << "  NÄCHSTE VERBESSERUNGEN FÜR PROGRAMMIERFÄHIGKEITEN (#14-20)\n";
                 std::cout << "═══════════════════════════════════════════════════════════════════\n";
 
-                // NEUE Verbesserungen für Programmierfähigkeiten (#11-20)
+                // NEUE Verbesserungen für Programmierfähigkeiten (#14-20)
                 auto push = [&](const std::string& title, const std::string& problem, int impv, int risk){
                     rael::Improvement x;
                     x.src = "REFLECT";
@@ -417,9 +422,6 @@ int main(){
                     rael::ImprovementBus::emit(x);
                 };
 
-                push("#11 FileSystem API (Grundlage)", "RAEL kann keine Dateien lesen/schreiben. Benötigt: read_file, write_file, list_dir, exists.", 10, base_risk+1);
-                push("#12 Language Parser + Lexer", "Kein Syntaxverständnis. Benötigt: Tokenizer, SimpleAST, LanguageRegistry für C++/Python/JS.", 10, base_risk+1);
-                push("#13 Process Executor", "Kann keine Compiler/Tests aufrufen. Benötigt: run_command, capture_output, exit_codes.", 10, base_risk+2);
                 push("#14 Git/VCS Integration", "Keine Versionskontrolle. Benötigt: commit, branch, diff, log, ChangeSet-Tracking.", 9, base_risk+1);
                 push("#15 Project Understanding Engine", "Versteht keine Projektstruktur. Benötigt: detect root, parse package.json/Cargo.toml.", 9, base_risk);
                 push("#16 Build System Integration", "Keine Build-Erkennung. Benötigt: CMake/npm/cargo Detektion, Compiler-Fehler-Parsing.", 9, base_risk+1);
@@ -428,7 +430,7 @@ int main(){
                 push("#19 Error/Debug Engine", "Keine Runtime-Fehler-Analyse. Benötigt: Stack-Trace-Parser, Exception-Flow.", 7, base_risk);
                 push("#20 LSP/IDE Integration", "Keine Editor-Integration. Benötigt: LSP-Server, Hover, Completion, Diagnostics.", 7, base_risk);
 
-                std::cout << "Emitted 20 improvements: 10 APPLIED (#1-10), 10 PENDING (#11-20).\n";
+                std::cout << "Emitted 20 improvements: 13 APPLIED (#1-13), 7 PENDING (#14-20).\n";
                 std::cout << "Use `improvements` to view all.\n";
                 continue;
             }
