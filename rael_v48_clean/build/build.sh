@@ -46,6 +46,11 @@ SOURCES=(
   "$ROOT/src/core/codegen.cpp"
   "$ROOT/src/core/debug_engine.cpp"
   "$ROOT/src/core/lsp_server.cpp"
+  "$ROOT/src/core/llm_runtime.cpp"
+  "$ROOT/src/core/mesh_network.cpp"
+  "$ROOT/src/core/neural_memory.cpp"
+  "$ROOT/src/core/swarm_orchestrator.cpp"
+  "$ROOT/src/core/api_server.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
