@@ -55,6 +55,13 @@ SOURCES=(
   "$ROOT/src/core/knowledge_graph.cpp"
   "$ROOT/src/core/nl_shell.cpp"
   "$ROOT/src/core/message_queue.cpp"
+  "$ROOT/src/core/agent_marketplace.cpp"
+  "$ROOT/src/core/security.cpp"
+  "$ROOT/src/core/ml_framework.cpp"
+  "$ROOT/src/core/plugin_sdk.cpp"
+  "$ROOT/src/core/observability.cpp"
+  "$ROOT/src/core/distributed_task.cpp"
+  "$ROOT/src/core/aether_archive.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
