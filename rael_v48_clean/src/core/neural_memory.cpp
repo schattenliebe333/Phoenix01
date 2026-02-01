@@ -704,7 +704,7 @@ NeuralMemoryStore::NeuralMemoryStore()
     : associations_(std::make_unique<AssociationGraph>())
     , index_(std::make_unique<MemoryIndex>())
     , consolidator_(std::make_unique<MemoryConsolidator>())
-    , embedding_fn_(simple_embed) {}
+    , embedding_fn_([](const std::string& text) { return simple_embed(text, 256); }) {}
 
 NeuralMemoryStore::~NeuralMemoryStore() = default;
 

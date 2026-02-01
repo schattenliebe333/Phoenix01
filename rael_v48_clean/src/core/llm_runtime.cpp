@@ -96,6 +96,7 @@ struct GGMLBackend::Impl {
     ModelInfo info;
     bool loaded = false;
     std::map<std::string, float> lora_adapters;
+    std::mutex mutex;
 
     // Simulated tokenizer (in real impl, would use llama.cpp)
     std::map<std::string, Token> vocab;
@@ -137,7 +138,7 @@ GGMLBackend::~GGMLBackend() {
 }
 
 bool GGMLBackend::load_model(const ModelConfig& config) {
-    std::lock_guard<std::mutex> lock(std::mutex{});
+    std::lock_guard<std::mutex> lock(impl_->mutex);
 
     // Check if file exists
     if (!fs::exists(config.model_path)) {

@@ -5,10 +5,12 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <memory>
 #include <functional>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 #include <queue>
 #include <thread>
 #include <optional>

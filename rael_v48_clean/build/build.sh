@@ -51,6 +51,10 @@ SOURCES=(
   "$ROOT/src/core/neural_memory.cpp"
   "$ROOT/src/core/swarm_orchestrator.cpp"
   "$ROOT/src/core/api_server.cpp"
+  "$ROOT/src/core/vector_store.cpp"
+  "$ROOT/src/core/knowledge_graph.cpp"
+  "$ROOT/src/core/nl_shell.cpp"
+  "$ROOT/src/core/message_queue.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
