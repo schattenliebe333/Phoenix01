@@ -34,6 +34,10 @@ SOURCES=(
   "$ROOT/src/core/hotswap.cpp"
   "$ROOT/src/core/voice.cpp"
   "$ROOT/src/core/raelcore.cpp"
+  "$ROOT/src/core/control_star.cpp"
+  "$ROOT/src/core/depth_scaling.cpp"
+  "$ROOT/src/core/voicepack.cpp"
+  "$ROOT/src/core/code_review.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
