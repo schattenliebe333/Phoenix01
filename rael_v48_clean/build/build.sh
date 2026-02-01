@@ -15,6 +15,7 @@ SOURCES=(
   "$ROOT/src/core/metrics.cpp"
   "$ROOT/src/core/events.cpp"
   "$ROOT/src/core/improvements.cpp"
+  "$ROOT/src/core/shadow_sim.cpp"
   "$ROOT/src/core/lane_scheduler.cpp"
   "$ROOT/src/core/star8.cpp"
   "$ROOT/src/core/sha256.cpp"
