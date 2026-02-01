@@ -1,0 +1,12 @@
+#include "rael/mathcore.h"
+namespace rael {
+std::vector<std::string> MathCore::built_in_formulas(){
+    return {
+        "QUELLE = 1440",
+        "TOR = 720",
+        "kappa(f) = 1 - f/1440",
+        "Phi = Psi ⊗ Omega",
+        "Kuramoto: dθ_i/dt = ω_i + (K/N) Σ sin(θ_j - θ_i)"
+    };
+}
+}
