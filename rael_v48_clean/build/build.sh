@@ -41,6 +41,11 @@ SOURCES=(
   "$ROOT/src/core/filesystem.cpp"
   "$ROOT/src/core/parser.cpp"
   "$ROOT/src/core/executor.cpp"
+  "$ROOT/src/core/git_integration.cpp"
+  "$ROOT/src/core/project_engine.cpp"
+  "$ROOT/src/core/codegen.cpp"
+  "$ROOT/src/core/debug_engine.cpp"
+  "$ROOT/src/core/lsp_server.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
