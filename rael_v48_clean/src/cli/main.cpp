@@ -87,7 +87,7 @@ static std::string join_rest(const std::vector<std::string>& v, size_t from){
 int main(){
     rael::RaelCore core;
 
-    std::cout << "Rael CLI v" << rael::VERSION_STRING << "\n";
+    std::cout << "Rael CLI v" << RAEL_VERSION_STRING << "\n";
     std::cout << "Identity: " << rael::IchBinCore::name() << " / " << rael::IchBinCore::signature() << "\n";
     std::cout << "Type 'help' for commands.\n";
 
