@@ -18,6 +18,7 @@
 //   [6] RST Status   - Gravitravitation, Vollenstrahlen, Defense Power
 //   [7] Einstellungen
 //   [8] SI Module     - Semantische Intelligenz / Programmierbarkeit
+//   [9] Improve       - Reflektion & Verbesserungsvorschläge
 //
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -41,6 +42,14 @@
 #include "rael/rst_deep_scanner.hpp"
 #include "rael/threat_interpreter.hpp"
 #include "rael/module_manager.h"
+#include "rael/improvements.h"
+#include "rael/reflection_engine.h"
+#include "rael/shadow_sim.h"
+#include "rael/metrics.h"
+#include "rael/telemetry.h"
+#include "rael/ethics.h"
+#include "rael/resonance.h"
+#include "rael/ichbin.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -123,7 +132,8 @@ enum class View {
     ALERTS = 5,
     RST_STATUS = 6,
     SETTINGS = 7,
-    SI_MODULES = 8
+    SI_MODULES = 8,
+    IMPROVE = 9
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -294,6 +304,9 @@ public:
                 case View::SI_MODULES:
                     render_si_modules();
                     break;
+                case View::IMPROVE:
+                    render_improve();
+                    break;
             }
 
             render_footer();
@@ -355,8 +368,9 @@ public:
         render_nav_item("6", "RST", current_view_ == View::RST_STATUS);
         render_nav_item("7", "Settings", current_view_ == View::SETTINGS);
         render_nav_item("8", "SI", current_view_ == View::SI_MODULES);
+        render_nav_item("9", "Improve", current_view_ == View::IMPROVE);
 
-        std::cout << std::string(4, ' ') << "║\n";
+        std::cout << "║\n";
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
     }
 
@@ -434,8 +448,34 @@ public:
                       << std::string(75, ' ') << "║\n";
         }
 
+        // RAEL Core Status
+        std::cout << "╠═══════════════════════════════════════╦═══════════════════════════════════════╦══════════════════════════════════════╣\n";
+        std::cout << "║ " << color::CYAN << "METRICS" << color::RESET << "                               ";
+        std::cout << "║ " << color::CYAN << "REFLEKTION" << color::RESET << "                            ";
+        std::cout << "║ " << color::CYAN << "ETHICS" << color::RESET << "                              ║\n";
+        std::cout << "╠═══════════════════════════════════════╬═══════════════════════════════════════╬══════════════════════════════════════╣\n";
+
+        // Metriken
+        std::cout << "║ Ops/sec:      " << std::setw(10) << gMetrics.ops_sec.load() << "              ";
+
+        // Improvements
+        auto pending_imps = ImprovementBus::by_status(ImprovementStatus::PENDING);
+        std::cout << "║ Pending:      " << std::setw(10) << pending_imps.size() << "              ";
+
+        // Ethics
+        std::cout << "║ Blocks:        " << std::setw(6) << gMetrics.ethics_blocks.load() << "            ║\n";
+
+        std::cout << "║ Semantic:     " << std::setw(10) << gMetrics.semantic_calls.load() << "              ";
+        std::cout << "║ Shadow-Sims:  " << std::setw(10) << gShadowSim.get_history().size() << "              ";
+        std::cout << "║ Resonance:     " << std::setw(6) << gMetrics.resonance_calls.load() << "            ║\n";
+
+        std::cout << "║ Hotswaps:     " << std::setw(10) << gMetrics.hotswaps.load() << "              ";
+        std::cout << "║ Rollbacks:    " << std::setw(10) << gRollback.list_points().size() << "              ";
+        std::cout << "║ " << color::GREEN << "ICHBIN: " << IchBinCore::signature() << color::RESET << "       ║\n";
+
+        std::cout << "╠═══════════════════════════════════════╩═══════════════════════════════════════╩══════════════════════════════════════╣\n";
+
         // RST Konstanten
-        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
         std::cout << "║ " << color::DIM << "RST: G0=8/9 (WAHRHEIT) │ G1=5/9 │ G3=3/9 │ G5=1/9 │ G5+G3+G1=9/9=1 │ Sig88=0.888..."
                   << color::RESET << std::string(19, ' ') << "║\n";
     }
@@ -833,12 +873,147 @@ public:
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // IMPROVE VIEW (Reflektion & Verbesserungsvorschläge)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_improve() {
+        std::cout << "║                        " << color::BOLD << "REFLEKTION & VERBESSERUNGSVORSCHLÄGE" << color::RESET << "                                              ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Statistik Header
+        auto pending = ImprovementBus::by_status(ImprovementStatus::PENDING);
+        auto approved = ImprovementBus::by_status(ImprovementStatus::APPROVED);
+        auto applied = ImprovementBus::by_status(ImprovementStatus::APPLIED);
+
+        std::cout << "║ " << color::YELLOW << "PENDING: " << pending.size() << color::RESET;
+        std::cout << " │ " << color::GREEN << "APPROVED: " << approved.size() << color::RESET;
+        std::cout << " │ " << color::CYAN << "APPLIED: " << applied.size() << color::RESET;
+        std::cout << std::string(65, ' ') << "║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Quellen-Übersicht
+        std::cout << "║ " << color::CYAN << "QUELLEN" << color::RESET << "                                                                                                        ║\n";
+
+        auto reflect = ImprovementBus::by_source(ImprovementSource::REFLECT, 10);
+        auto defense = ImprovementBus::by_source(ImprovementSource::LIVE_DEFENSE, 10);
+        auto self_opt = ImprovementBus::by_source(ImprovementSource::SELF_OPT, 10);
+        auto aar = ImprovementBus::by_source(ImprovementSource::AAR, 10);
+
+        std::cout << "║   REFLECT (Selbstreflexion):     " << std::setw(5) << reflect.size();
+        std::cout << "  │  LIVE_DEFENSE (Verteidigung): " << std::setw(5) << defense.size() << std::string(29, ' ') << "║\n";
+        std::cout << "║   SELF_OPT (Selbstoptimierung):  " << std::setw(5) << self_opt.size();
+        std::cout << "  │  AAR (After-Action-Review):   " << std::setw(5) << aar.size() << std::string(29, ' ') << "║\n";
+
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Vorschläge Liste Header
+        std::cout << "║ " << color::CYAN << "AKTUELLE VORSCHLÄGE" << color::RESET << " (neueste zuerst)                                                                          ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Header
+        std::cout << "║ " << color::BOLD;
+        std::cout << std::setw(4) << "ID" << " │ ";
+        std::cout << std::setw(12) << std::left << "QUELLE" << " │ ";
+        std::cout << std::setw(3) << "IMP" << " │ ";
+        std::cout << std::setw(3) << "RSK" << " │ ";
+        std::cout << std::setw(10) << "STATUS" << " │ ";
+        std::cout << std::setw(55) << "TITEL";
+        std::cout << color::RESET << std::right << "  ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Letzte Verbesserungen anzeigen
+        auto improvements = ImprovementBus::last(10);
+        int shown = 0;
+
+        for (const auto& imp : improvements) {
+            if (shown >= 10) break;
+
+            // Farbe basierend auf Status
+            std::string status_color = color::RESET;
+            switch (imp.typed_status) {
+                case ImprovementStatus::PENDING:  status_color = color::YELLOW; break;
+                case ImprovementStatus::APPROVED: status_color = color::GREEN; break;
+                case ImprovementStatus::REJECTED: status_color = color::RED; break;
+                case ImprovementStatus::DEFERRED: status_color = color::DIM; break;
+                case ImprovementStatus::APPLIED:  status_color = color::CYAN; break;
+                default: break;
+            }
+
+            // Importance Farbe
+            std::string imp_color = imp.importance >= 8 ? color::RED :
+                                   imp.importance >= 5 ? color::YELLOW : color::GREEN;
+
+            std::string title = imp.title;
+            if (title.length() > 53) title = title.substr(0, 50) + "...";
+
+            std::cout << "║ ";
+            std::cout << std::setw(4) << imp.id << " │ ";
+            std::cout << std::setw(12) << std::left << source_to_string(imp.source) << " │ ";
+            std::cout << imp_color << std::setw(3) << imp.importance << color::RESET << " │ ";
+            std::cout << std::setw(3) << imp.risk << " │ ";
+            std::cout << status_color << std::setw(10) << status_to_string(imp.typed_status) << color::RESET << " │ ";
+            std::cout << std::setw(55) << std::left << title << std::right;
+            std::cout << "  ║\n";
+
+            shown++;
+        }
+
+        if (improvements.empty()) {
+            std::cout << "║ " << color::DIM << "Keine Verbesserungsvorschläge vorhanden. RAEL reflektiert automatisch."
+                      << color::RESET << std::string(36, ' ') << "║\n";
+        }
+
+        // Padding
+        for (int i = shown; i < 10; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+
+        // Shadow Simulation & Rollback Status
+        std::cout << "╠═══════════════════════════════════════════════════════════════╦══════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::MAGENTA << "SHADOW SIMULATOR" << color::RESET << "                                             ";
+        std::cout << "║ " << color::CYAN << "ROLLBACK MANAGER" << color::RESET << "                                   ║\n";
+        std::cout << "╠═══════════════════════════════════════════════════════════════╬══════════════════════════════════════════════════════╣\n";
+
+        auto shadow_history = gShadowSim.get_history();
+        auto rollback_points = gRollback.list_points();
+
+        std::cout << "║ Simulationen:     " << std::setw(5) << shadow_history.size() << "                                    ";
+        std::cout << "║ Rollback-Punkte:  " << std::setw(5) << rollback_points.size() << "                         ║\n";
+
+        // Letzte Shadow-Simulation
+        if (!shadow_history.empty()) {
+            const auto& last_sim = shadow_history.back();
+            std::cout << "║ Letzte: " << color::DIM << std::setw(40) << last_sim.description.substr(0, 40) << color::RESET << "      ";
+        } else {
+            std::cout << "║ Letzte: " << color::DIM << "(keine)" << color::RESET << std::string(40, ' ') << "      ";
+        }
+
+        // Letzter Rollback-Punkt
+        if (!rollback_points.empty()) {
+            const auto& last_rb = rollback_points.back();
+            std::cout << "║ Letzte: " << color::DIM << std::setw(30) << last_rb.description.substr(0, 30) << color::RESET << "         ║\n";
+        } else {
+            std::cout << "║ Letzte: " << color::DIM << "(keine)" << color::RESET << std::string(30, ' ') << "         ║\n";
+        }
+
+        std::cout << "╠═══════════════════════════════════════════════════════════════╩══════════════════════════════════════════════════════╣\n";
+
+        // Reflektion Prinzip
+        std::cout << "║ " << color::CYAN << "REFLEKTION" << color::RESET << ": Selbstanalyse → Vorschlag → " << color::GREEN << "MENSCH entscheidet" << color::RESET << " → Shadow-Test → Apply/Rollback       ║\n";
+
+        // Aktionen
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[A] Approve │ [X] Reject │ [D] Defer │ [P] Apply │ [B] Rollback │ [S] Shadow-Sim │ [R] Run AAR"
+                  << color::RESET << "    ║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // FOOTER
     // ═══════════════════════════════════════════════════════════════════════
 
     void render_footer() {
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
-        std::cout << "║ " << color::DIM << "[1-8] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
+        std::cout << "║ " << color::DIM << "[1-9] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
                   << color::RESET << std::string(51, ' ') << "║\n";
         std::cout << "╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝\n";
     }
@@ -861,6 +1036,7 @@ public:
                 case '6': current_view_ = View::RST_STATUS; break;
                 case '7': current_view_ = View::SETTINGS; break;
                 case '8': current_view_ = View::SI_MODULES; break;
+                case '9': current_view_ = View::IMPROVE; break;
 
                 // Quit
                 case 'q':
@@ -903,6 +1079,8 @@ public:
                 case 'A':
                     if (current_view_ == View::SI_MODULES) {
                         activate_si_module_interactive();
+                    } else if (current_view_ == View::IMPROVE) {
+                        approve_improvement_interactive();
                     }
                     break;
 
@@ -910,6 +1088,29 @@ public:
                 case 'D':
                     if (current_view_ == View::SI_MODULES) {
                         deactivate_si_module_interactive();
+                    } else if (current_view_ == View::IMPROVE) {
+                        defer_improvement_interactive();
+                    }
+                    break;
+
+                case 'x':
+                case 'X':
+                    if (current_view_ == View::IMPROVE) {
+                        reject_improvement_interactive();
+                    }
+                    break;
+
+                case 'p':
+                case 'P':
+                    if (current_view_ == View::IMPROVE) {
+                        apply_improvement_interactive();
+                    }
+                    break;
+
+                case 'b':
+                case 'B':
+                    if (current_view_ == View::IMPROVE) {
+                        rollback_interactive();
                     }
                     break;
 
@@ -1148,6 +1349,87 @@ private:
         add_alert(Alert::INFO, "SI", "Ergebnis", result);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // IMPROVE VIEW FUNKTIONEN (Reflektion & Verbesserungen)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void approve_improvement_interactive() {
+        auto pending = ImprovementBus::by_status(ImprovementStatus::PENDING);
+        if (!pending.empty()) {
+            auto& imp = pending.front();
+            if (ImprovementBus::update_status(imp.id, ImprovementStatus::APPROVED)) {
+                add_alert(Alert::INFO, "IMPROVE", "Genehmigt: " + imp.title, "ID: " + std::to_string(imp.id));
+            }
+        } else {
+            add_alert(Alert::INFO, "IMPROVE", "Keine PENDING Vorschläge", "");
+        }
+    }
+
+    void reject_improvement_interactive() {
+        auto pending = ImprovementBus::by_status(ImprovementStatus::PENDING);
+        if (!pending.empty()) {
+            auto& imp = pending.front();
+            if (ImprovementBus::update_status(imp.id, ImprovementStatus::REJECTED)) {
+                add_alert(Alert::INFO, "IMPROVE", "Abgelehnt: " + imp.title, "ID: " + std::to_string(imp.id));
+            }
+        }
+    }
+
+    void defer_improvement_interactive() {
+        auto pending = ImprovementBus::by_status(ImprovementStatus::PENDING);
+        if (!pending.empty()) {
+            auto& imp = pending.front();
+            if (ImprovementBus::update_status(imp.id, ImprovementStatus::DEFERRED)) {
+                add_alert(Alert::INFO, "IMPROVE", "Zurückgestellt: " + imp.title, "ID: " + std::to_string(imp.id));
+            }
+        }
+    }
+
+    void apply_improvement_interactive() {
+        auto approved = ImprovementBus::by_status(ImprovementStatus::APPROVED);
+        if (!approved.empty()) {
+            auto& imp = approved.front();
+
+            // Shadow-Simulation vor Anwendung
+            if (imp.shadow_tested) {
+                // Erstelle Rollback-Punkt
+                uint64_t rb_id = gRollback.create_point("Vor Anwendung: " + imp.title);
+
+                if (ImprovementBus::update_status(imp.id, ImprovementStatus::APPLIED)) {
+                    add_alert(Alert::INFO, "IMPROVE", "Angewendet: " + imp.title,
+                             "Rollback-Punkt: " + std::to_string(rb_id));
+                }
+            } else {
+                add_alert(Alert::WARNING, "IMPROVE", "Shadow-Test erforderlich!",
+                         "Nutze [S] für Shadow-Simulation");
+            }
+        } else {
+            add_alert(Alert::INFO, "IMPROVE", "Keine APPROVED Vorschläge zum Anwenden", "");
+        }
+    }
+
+    void rollback_interactive() {
+        std::string err;
+        if (gRollback.rollback_last(err)) {
+            add_alert(Alert::INFO, "ROLLBACK", "Erfolgreich zurückgerollt", "");
+        } else {
+            add_alert(Alert::WARNING, "ROLLBACK", "Rollback fehlgeschlagen", err);
+        }
+    }
+
+    void run_aar_interactive() {
+        add_alert(Alert::INFO, "AAR", "After-Action-Review gestartet...", "");
+
+        // AAR Engine analysiert Metriken
+        gAAR.analyze();
+
+        add_alert(Alert::INFO, "AAR", "Analyse abgeschlossen", "Neue Vorschläge generiert");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ÖFFENTLICHE API
+    // ═══════════════════════════════════════════════════════════════════════
+
     // Öffentliche API für SI-Programmierung
 public:
     // Text durch alle aktiven semantischen Module verarbeiten
@@ -1185,6 +1467,70 @@ public:
     ModuleManager& si_module_manager() {
         return module_manager_;
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // REFLEKTION & IMPROVE API
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Verbesserungsvorschlag erstellen
+    uint64_t improve_emit(ImprovementSource source, const std::string& title,
+                         const std::string& problem, int importance = 5, int risk = 3) {
+        return ImprovementBus::emit(source, title, problem, importance, risk);
+    }
+
+    // Letzte Verbesserungen holen
+    std::vector<Improvement> improve_last(size_t n = 10) {
+        return ImprovementBus::last(n);
+    }
+
+    // Status eines Vorschlags ändern
+    bool improve_update_status(uint64_t id, ImprovementStatus status) {
+        return ImprovementBus::update_status(id, status);
+    }
+
+    // Shadow-Simulation für einen Vorschlag
+    ShadowResult improve_simulate(const std::string& description, ShadowAction action) {
+        ShadowState shadow = gShadowSim.create_shadow(description);
+        return gShadowSim.simulate(shadow, action);
+    }
+
+    // Rollback-Punkt erstellen
+    uint64_t improve_create_rollback(const std::string& description) {
+        return gRollback.create_point(description);
+    }
+
+    // Zum letzten Rollback-Punkt zurückkehren
+    bool improve_rollback_last() {
+        std::string err;
+        return gRollback.rollback_last(err);
+    }
+
+    // After-Action-Review ausführen
+    void improve_run_aar() {
+        gAAR.analyze();
+    }
+
+    // Ethics-Check für eine Intention
+    bool ethics_allows(const std::string& intention) {
+        std::string reason;
+        return EthicsCore::allows(intention, reason);
+    }
+
+    // Resonanz evaluieren
+    ResonanceResult evaluate_resonance(const SemanticResult& s) {
+        ResonanceEngine engine;
+        return engine.evaluate(s);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // METRIKEN API
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Aktuelle Metriken
+    Metrics& get_metrics() { return gMetrics; }
+
+    // Telemetrie
+    Telemetry& get_telemetry() { return gTelemetry; }
 
 private:
     void clear_screen() {
