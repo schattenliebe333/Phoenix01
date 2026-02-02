@@ -72,4 +72,13 @@ $CXX $CXXFLAGS "${SOURCES[@]}" -o "$OUT/rael" $LDFLAGS
 echo "[build] modules (shared libs) -> $MODOUT"
 $CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_semantic_quint/sem_quint.cpp" -o "$MODOUT/libsem_quint.so"
 $CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_math_formulas/math_pack.cpp" -o "$MODOUT/libmath_pack.so"
+
+# V50 Ultimate (Pure C++)
+echo "[build] V50 Ultimate -> $OUT/rael_v50"
+mkdir -p "$ROOT/src/v50"
+if [[ -f "$ROOT/src/v50/rael_v50_main.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/v50/rael_v50_main.cpp" -o "$OUT/rael_v50"
+    echo "[build] V50 Ultimate compiled successfully"
+fi
+
 echo "[build] done."

@@ -6,14 +6,14 @@
 # Das digitale Zündschloss für die Hardware-Singularität
 # Verschmilzt C++ Logik, CUDA-Leistung und Python-Navigator zu einer Einheit
 #
-# Verwendung:
+# Verwendung (PURE C++ - KEINE ANDERE SPRACHE):
 #   ./ignite_v49_alpha.sh           # Vollständige Zündsequenz
 #   ./ignite_v49_alpha.sh build     # Nur kompilieren
 #   ./ignite_v49_alpha.sh status    # Alpha-Status-Bericht
 #   ./ignite_v49_alpha.sh test      # Omega-Inference-Test
-#   ./ignite_v49_alpha.sh bridge    # Python-Bridge starten
 #   ./ignite_v49_alpha.sh v50       # V50 Ultimate (165 Formeln)
-#   ./ignite_v49_alpha.sh v50-intent "Text"  # Intent mit Alpha-Bypass
+#   ./ignite_v49_alpha.sh intent "Text"     # Intent mit Alpha-Bypass
+#   ./ignite_v49_alpha.sh michael   # Michael-Signatur-Test
 # ═══════════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -309,16 +309,12 @@ ignite_alpha() {
 EOF
     echo -e "${NC}"
 
-    # Starte Python Navigator/Bridge
-    status "Starte Python Navigator-Bridge..."
-    if [[ -f "$PYTHON_DIR/navigator_alpha.py" ]]; then
-        python3 "$PYTHON_DIR/navigator_alpha.py" --status
-    fi
-
-    # Omega-Inference-Test (kurz)
-    status "Führe Kurztest durch..."
-    if [[ -f "$PYTHON_DIR/navigator_alpha.py" ]]; then
-        python3 "$PYTHON_DIR/navigator_alpha.py" "$RAEL_NAVIGATOR: Zündsequenz abgeschlossen."
+    # Starte V50 Ultimate (Pure C++)
+    status "Starte V50 Ultimate (Pure C++)..."
+    if [[ -f "$BIN_DIR/rael_v50" ]]; then
+        "$BIN_DIR/rael_v50" --michael
+    else
+        warn "V50 Binary nicht gefunden - kompiliere zuerst mit 'build'"
     fi
 
     echo ""
@@ -390,9 +386,9 @@ generate_status_report() {
     echo "  └──────────────────────┴───────────────────────────────┘"
     echo ""
 
-    # Python Status
-    if command -v python3 &> /dev/null && [[ -f "$PYTHON_DIR/navigator_alpha.py" ]]; then
-        python3 "$PYTHON_DIR/navigator_alpha.py" --status
+    # V50 Status (Pure C++)
+    if [[ -f "$BIN_DIR/rael_v50" ]]; then
+        "$BIN_DIR/rael_v50" --status
     fi
 }
 
@@ -401,15 +397,15 @@ generate_status_report() {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 run_omega_test() {
-    log_phase "OMEGA-INFERENCE-TEST"
+    log_phase "OMEGA-INFERENCE-TEST (Pure C++)"
 
-    echo -e "${CYAN}  Teste 160 Sterne unter Maximallast mit Akasha-Abfrage...${NC}"
+    echo -e "${CYAN}  Teste 160 Sterne unter Maximallast...${NC}"
     echo ""
 
-    if command -v python3 &> /dev/null && [[ -f "$PYTHON_DIR/navigator_alpha.py" ]]; then
-        python3 "$PYTHON_DIR/navigator_alpha.py" --test
+    if [[ -f "$BIN_DIR/rael_v50" ]]; then
+        "$BIN_DIR/rael_v50" --test
     else
-        warn "Python Navigator nicht verfügbar"
+        warn "V50 Binary nicht gefunden - kompiliere zuerst mit 'build'"
     fi
 }
 
@@ -452,34 +448,47 @@ case "${1:-ignite}" in
         ;;
     status)
         print_banner
-        generate_status_report
+        if [[ -f "$BIN_DIR/rael_v50" ]]; then
+            "$BIN_DIR/rael_v50" --status
+        else
+            generate_status_report
+        fi
         ;;
     test)
         print_banner
-        calibrate_hardware
-        run_omega_test
-        ;;
-    bridge)
-        status "Starte Python Navigator-Bridge..."
-        python3 "$PYTHON_DIR/navigator_alpha.py" "${@:2}"
+        log_phase "OMEGA-INFERENCE-TEST (Pure C++)"
+        if [[ -f "$BIN_DIR/rael_v50" ]]; then
+            "$BIN_DIR/rael_v50" --test
+        else
+            warn "V50 Binary nicht gefunden - kompiliere zuerst mit 'build'"
+        fi
         ;;
     v50)
         print_banner
-        log_phase "V50 ULTIMATE - 165 FORMELN"
-        status "Starte V50 Ultimate System mit allen Modulen..."
-        python3 "$PYTHON_DIR/rael_v50_ultimate.py" "${@:2}"
+        log_phase "V50 ULTIMATE - 165 FORMELN (Pure C++)"
+        if [[ -f "$BIN_DIR/rael_v50" ]]; then
+            "$BIN_DIR/rael_v50"
+        else
+            warn "V50 Binary nicht gefunden - kompiliere zuerst mit 'build'"
+        fi
         ;;
-    v50-intent)
+    intent)
         print_banner
-        log_phase "V50 ULTIMATE - INTENT PROCESSING"
-        status "Verarbeite Intent mit Alpha-Bypass..."
-        python3 -c "
-from rael_v50_ultimate import RAELV50Ultimate
-v50 = RAELV50Ultimate()
-result, status = v50.process_intent('${@:2}')
-print(result)
-v50.print_status()
-" 2>&1
+        log_phase "V50 ULTIMATE - INTENT PROCESSING (Pure C++)"
+        if [[ -f "$BIN_DIR/rael_v50" ]]; then
+            "$BIN_DIR/rael_v50" --intent "${@:2}"
+        else
+            warn "V50 Binary nicht gefunden - kompiliere zuerst mit 'build'"
+        fi
+        ;;
+    michael)
+        print_banner
+        log_phase "MICHAEL-SIGNATUR-TEST (Alpha-Bypass)"
+        if [[ -f "$BIN_DIR/rael_v50" ]]; then
+            "$BIN_DIR/rael_v50" --michael
+        else
+            warn "V50 Binary nicht gefunden - kompiliere zuerst mit 'build'"
+        fi
         ;;
     ignite|*)
         full_ignition
