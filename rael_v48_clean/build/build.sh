@@ -81,4 +81,19 @@ if [[ -f "$ROOT/src/v50/rael_v50_main.cpp" ]]; then
     echo "[build] V50 Ultimate compiled successfully"
 fi
 
+# Windows 11 EXE (Cross-Compilation)
+WIN_CXX="${WIN_CXX:-x86_64-w64-mingw32-g++}"
+if command -v "$WIN_CXX" &> /dev/null; then
+    echo "[build] Windows 11 EXE -> $OUT/windows/rael_v50.exe"
+    mkdir -p "$OUT/windows"
+    if [[ -f "$ROOT/src/windows/rael_v50_windows.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/windows/rael_v50_windows.cpp" \
+            -o "$OUT/windows/rael_v50.exe"
+        echo "[build] Windows EXE compiled successfully"
+    fi
+else
+    echo "[build] mingw-w64 not found, skipping Windows build"
+fi
+
 echo "[build] done."
