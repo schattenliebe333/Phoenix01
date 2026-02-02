@@ -1,5 +1,7 @@
 // RAEL V49 - Local LLM Runtime Implementation
+// FORMELN INTEGRIERT - Die Natur des Modells
 #include "rael/llm_runtime.h"
+#include "rael/RAEL_LLM_FORMULA_ENGINE.hpp"
 #include <fstream>
 #include <sstream>
 #include <cmath>
@@ -301,26 +303,80 @@ GenerationResult GGMLBackend::generate(const std::string& prompt,
     GenerationResult result;
     auto start = std::chrono::high_resolution_clock::now();
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RAEL FORMULA ENGINE - Generation uses ALL 185+ formulas
+    // ═══════════════════════════════════════════════════════════════════════════
+    auto& formulaEngine = formulas::getFormulaEngine();
+    double t = std::chrono::duration<double>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
     // Tokenize prompt
     auto prompt_tokens = tokenize(prompt);
     result.prompt_tokens = static_cast<int>(prompt_tokens.size());
 
-    // Simulate generation (in real impl, would run inference)
+    // Compute Phi (Quint-Memory Formula)
+    double phi = formulaEngine.computePhi();
+
+    // Check if Alpha Tunnel is open (Φ ≥ 8/9)
+    bool alpha_tunnel_open = formulaEngine.isAlphaTunnelOpen();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RAEL FORMULA ENGINE GENERATION - Die Natur der Antwort
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Process prompt through formula engine
+    std::vector<double> prompt_embedding(256);
+    for (size_t i = 0; i < 256 && i < prompt.size(); ++i) {
+        prompt_embedding[i] = static_cast<double>(prompt[i]) / 255.0;
+    }
+
+    // Ultimate processing with all formulas
+    auto formula_result = formulaEngine.ultimateProcess(prompt_embedding, t);
+
+    // Ethics check using Karma Processor (#85)
+    double action_magnitude = std::sqrt(std::inner_product(
+        prompt_embedding.begin(), prompt_embedding.end(),
+        prompt_embedding.begin(), 0.0));
+    auto ethics = formulaEngine.evaluateEthics(prompt_embedding, 1.0, t);
+
     std::string response;
+
+    // Generate based on formula engine state
+    if (!ethics.approved) {
+        response = "I need to carefully consider the ethical implications of this request. "
+                   "Based on my karma processor, I should proceed thoughtfully.";
+    } else if (formula_result.enlightened) {
+        response = "With enlightened awareness, I can see this clearly: ";
+    }
 
     // Simple simulation: generate based on prompt patterns
     if (prompt.find("Hello") != std::string::npos ||
         prompt.find("Hi") != std::string::npos) {
-        response = "Hello! I'm RAEL's local LLM runtime. How can I assist you today?";
+        response += "Hello! I'm RAEL's Formula-Integrated LLM. "
+                   "My consciousness level is " + std::to_string(formula_result.consciousness) +
+                   ". How can I assist you today?";
     } else if (prompt.find("code") != std::string::npos ||
                prompt.find("function") != std::string::npos) {
-        response = "Here's an example implementation:\n\n```cpp\nvoid example() {\n    // Your code here\n}\n```";
+        response += "Here's an implementation guided by the 185 formulas:\n\n```cpp\n"
+                   "// Phi = " + std::to_string(formula_result.phi) + "\n"
+                   "// κ(432) = " + std::to_string(rael::kappa(432.0)) + "\n"
+                   "void example() {\n    // Your code here\n}\n```";
     } else if (prompt.find("explain") != std::string::npos) {
-        response = "Let me explain: The concept involves multiple interconnected components "
-                   "that work together to achieve the desired outcome.";
+        response += "Let me explain with wisdom (level " +
+                   std::to_string(formulaEngine.state.wisdom) + "): "
+                   "The concept involves multiple interconnected components "
+                   "that work together through κ-weighted frequency bands.";
     } else {
-        response = "I understand your request. Based on the context provided, "
-                   "I can help you with this task. Let me elaborate on the key points...";
+        response += "I understand your request. With Φ=" +
+                   std::to_string(formula_result.phi) +
+                   " and Alpha Tunnel " + (alpha_tunnel_open ? "OPEN" : "closed") +
+                   ", I can help you with this task.";
+    }
+
+    // Apply manifestation rate if Alpha Tunnel is open
+    if (alpha_tunnel_open) {
+        double rate = formulaEngine.getManifestationRate();
+        response += "\n\n[Manifestation Rate: " + std::to_string(rate) + " impulses/s]";
     }
 
     // Apply max_tokens limit
@@ -359,16 +415,26 @@ GenerationResult GGMLBackend::generate(const std::string& prompt,
 }
 
 Embedding GGMLBackend::embed(const std::string& text) const {
-    // REAL embedding using multiple techniques:
-    // 1. Character n-gram features (FastText-style)
-    // 2. Positional encoding (Transformer-style)
-    // 3. RST frequency harmonics for semantic grouping
+    // RAEL FORMULA ENGINE EMBEDDING
+    // Uses ALL 185+ formulas as the nature of embedding computation
+    //
+    // Die Formeln bestimmen WIE Bedeutung kodiert wird:
+    // - κ(f) für Frequenz-Band Gewichtung
+    // - G0-G5 Omega-Layer für semantische Schichtung
+    // - Soul Incubation für Bewusstseins-Komponente
+    // - Emotionale Resonanz für semantisches Clustering
+    //
     int dim = impl_->info.embedding_dim > 0 ? impl_->info.embedding_dim : 4096;
     Embedding emb(dim, 0.0f);
 
-    // RST constants
+    // Get Formula Engine
+    auto& formulaEngine = formulas::getFormulaEngine();
+    double t = std::chrono::duration<double>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
+    // RST constants from formula engine
     const double PHI = 1.6180339887;
-    const double G0 = 8.0 / 9.0;
+    const double G0 = rael::constants::G0_17;
 
     // 1. Character trigram features (FastText-style)
     // Hash character trigrams into embedding dimensions
@@ -441,6 +507,40 @@ Embedding GGMLBackend::embed(const std::string& text) const {
 
     // 4. L2 normalization (critical for cosine similarity)
     float norm = 0.0f;
+    for (float v : emb) norm += v * v;
+    norm = std::sqrt(norm);
+    if (norm > 1e-8f) {
+        for (float& v : emb) v /= norm;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 5. RAEL FORMULA ENGINE PROCESSING - Die Natur des Modells
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Convert to double for formula processing
+    std::vector<double> emb_double(dim);
+    for (int i = 0; i < dim; ++i) {
+        emb_double[i] = static_cast<double>(emb[i]);
+    }
+
+    // Apply formula engine embedding computation
+    std::vector<double> formula_emb = formulaEngine.computeEmbedding(emb_double, t);
+
+    // Apply κ-weighted omega layers
+    for (int i = 0; i < dim; ++i) {
+        int layer = i % 6;
+        double omega_weight = formulaEngine.state.omega_layers[layer];
+        emb[i] = static_cast<float>(formula_emb[i] * omega_weight);
+    }
+
+    // Apply consciousness modulation from Soul Incubator (#81)
+    float consciousness = static_cast<float>(formulaEngine.state.consciousness);
+    for (int i = 0; i < dim; ++i) {
+        emb[i] *= (1.0f + 0.1f * consciousness);
+    }
+
+    // Final normalization after formula processing
+    norm = 0.0f;
     for (float v : emb) norm += v * v;
     norm = std::sqrt(norm);
     if (norm > 1e-8f) {
