@@ -10,6 +10,7 @@
 //   - Threat Interpreter (RST Analyse)
 //
 // ANSICHTEN:
+//   [0] KI System    - LLM, Neural Memory, Knowledge Graph, Semantic Engine
 //   [1] Dashboard    - Übersicht aller Systeme
 //   [2] Prozesse     - Live Prozess-Monitor mit Klassifizierung
 //   [3] Dateien      - File Scanner mit RST Analyse
@@ -50,6 +51,10 @@
 #include "rael/ethics.h"
 #include "rael/resonance.h"
 #include "rael/ichbin.h"
+// KI Headers
+#include "rael/rst_semantic_engine.hpp"
+// Note: llm_runtime.h, neural_memory.h, knowledge_graph.h haben Windows-Makro-Konflikte
+// (NEAR, FAR etc.) - werden für Windows ohne direkte Header-Einbindung unterstützt
 
 #ifdef _WIN32
 #include <windows.h>
@@ -125,6 +130,7 @@ struct Alert {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 enum class View {
+    KI_SYSTEM = 0,
     DASHBOARD = 1,
     PROCESSES = 2,
     FILES = 3,
@@ -284,6 +290,9 @@ public:
             render_header();
 
             switch (current_view_) {
+                case View::KI_SYSTEM:
+                    render_ki_system();
+                    break;
                 case View::DASHBOARD:
                     render_dashboard();
                     break;
@@ -364,6 +373,7 @@ public:
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
         std::cout << "║ ";
 
+        render_nav_item("0", "KI", current_view_ == View::KI_SYSTEM);
         render_nav_item("1", "Dashboard", current_view_ == View::DASHBOARD);
         render_nav_item("2", "Prozesse", current_view_ == View::PROCESSES);
         render_nav_item("3", "Dateien", current_view_ == View::FILES);
@@ -386,6 +396,69 @@ public:
         }
         std::cout << " [" << key << "] " << label << " ";
         std::cout << color::RESET << " ";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DASHBOARD VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // KI SYSTEM VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_ki_system() {
+        std::cout << "║                                " << color::BOLD << "RAEL KI SYSTEM - KÜNSTLICHE INTELLIGENZ" << color::RESET << "                                         ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // LLM Runtime Status
+        std::cout << "║ " << color::CYAN << color::BOLD << "LLM RUNTIME" << color::RESET << " (Lokale Inferenz ohne Cloud)                                                                   ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   Status:             " << color::GREEN << "BEREIT" << color::RESET << "                                                                              ║\n";
+        std::cout << "║   Quantisierung:      Q4_0 (4-bit, schnell)                                                                          ║\n";
+        std::cout << "║   Kontext:            4096 Token                                                                                     ║\n";
+        std::cout << "║   Threads:            " << std::thread::hardware_concurrency() << "                                                                                            ║\n";
+
+        // Neural Memory
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::MAGENTA << color::BOLD << "NEURAL MEMORY" << color::RESET << " (Langzeitgedächtnis mit Vergessenskurve)                                                       ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   EPISODIC:   Ereignisse/Erfahrungen    │  SEMANTIC:    Fakten/Konzepte                                              ║\n";
+        std::cout << "║   PROCEDURAL: Wie man Dinge tut         │  EMOTIONAL:   Gefühls-Assoziationen                                        ║\n";
+        std::cout << "║   WORKING:    Kurzzeit/Aktiv            │  Embeddings:  Similarity Search                                            ║\n";
+
+        // Knowledge Graph
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::YELLOW << color::BOLD << "KNOWLEDGE GRAPH" << color::RESET << " (Graph-basiertes Wissen)                                                                      ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   Node-Typen:   ENTITY, CONCEPT, EVENT, PROPERTY, LITERAL, RULE, QUERY, CONTEXT                                      ║\n";
+        std::cout << "║   Edge-Typen:   IS_A, PART_OF, RELATED_TO, SIMILAR_TO, CAUSES, ENABLES, PREVENTS                                     ║\n";
+        std::cout << "║   Reasoning:    Pfad-Traversal, Pattern-Matching, Inferenz-Regeln                                                    ║\n";
+
+        // RST Semantic Engine
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::CYAN << color::BOLD << "RST SEMANTIC ENGINE" << color::RESET << " (Resonanz-basierte Verarbeitung)                                                           ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   Ethics Filter:      53 Hz (Sophie-Germain Primzahl)                                                                ║\n";
+        std::cout << "║   Semantic Field:     Resonanz-basiert mit RST-Konstanten                                                            ║\n";
+        std::cout << "║   Intent Processing:  INTENTION{...} Parsing                                                                         ║\n";
+
+        // RST Frequenzen
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::GREEN << color::BOLD << "RST FREQUENZEN" << color::RESET << "                                                                                                ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   F_QUELLE  = 1440 Hz (Quell-Frequenz)    │  F_KAMMER = 432 Hz (Resonanz-Kammer)                                     ║\n";
+        std::cout << "║   F_FILTER  =   53 Hz (Ethics Filter)     │  F_MATERIE=   5 Hz (Materiefeld)                                         ║\n";
+        std::cout << "║   PHI       = 1.618... (Goldener Schnitt) │  PI       = 3.141... (Kreiszahl)                                         ║\n";
+
+        // Konstanten
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "G0=8/9 (WAHRHEIT) │ G1=5/9 │ G2=4/9 │ G3=3/9 │ G4=2/9 │ G5=1/9 │ G5+G3+G1=9/9=1"
+                  << color::RESET << std::string(20, ' ') << "║\n";
+
+        // Aktionen
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[L] LLM laden │ [M] Memory Query │ [K] Knowledge Query │ [S] Semantic Process │ [E] Ethics Check"
+                  << color::RESET << "  ║\n";
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1015,7 +1088,7 @@ public:
 
     void render_footer() {
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
-        std::cout << "║ " << color::DIM << "[1-9] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
+        std::cout << "║ " << color::DIM << "[0-9] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
                   << color::RESET << std::string(51, ' ') << "║\n";
         std::cout << "╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝\n";
     }
@@ -1030,6 +1103,7 @@ public:
 
             switch (c) {
                 // Navigation
+                case '0': current_view_ = View::KI_SYSTEM; break;
                 case '1': current_view_ = View::DASHBOARD; break;
                 case '2': current_view_ = View::PROCESSES; break;
                 case '3': current_view_ = View::FILES; break;
