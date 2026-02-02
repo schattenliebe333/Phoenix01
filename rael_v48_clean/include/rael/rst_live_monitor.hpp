@@ -38,6 +38,7 @@
 #include <cstdint>
 
 #include "rael/security_core.hpp"
+#include "rael/threat_interpreter.hpp"
 
 namespace rael {
 namespace security {
@@ -49,13 +50,16 @@ namespace live {
 
 class RSTAnalysisEngine {
 private:
-    // RST Constants
-    static constexpr double G0 = 8.0 / 9.0;  // 0.888... WAHRHEIT
-    static constexpr double G1 = 5.0 / 9.0;  // 0.555...
-    static constexpr double G3 = 3.0 / 9.0;  // 0.333...
-    static constexpr double G5 = 1.0 / 9.0;  // 0.111...
-    static constexpr double PHI = 1.6180339887498948482;
-    static constexpr double SIGNATURE_88 = 0.88888888888888888;
+    // RST Constants - PRÄZISION: 17 Dezimalstellen
+    // WICHTIG: G5 + G3 + G1 = 1/9 + 3/9 + 5/9 = 9/9 = 1
+    static constexpr double G0 = 0.88888888888888889;  // 8/9 WAHRHEIT (Referenz)
+    static constexpr double G1 = 0.55555555555555556;  // 5/9
+    static constexpr double G2 = 0.44444444444444444;  // 4/9
+    static constexpr double G3 = 0.33333333333333333;  // 3/9
+    static constexpr double G4 = 0.22222222222222222;  // 2/9
+    static constexpr double G5 = 0.11111111111111111;  // 1/9
+    static constexpr double PHI = 1.61803398874989484;
+    static constexpr double SIGNATURE_88 = 0.88888888888888889;  // = G0
 
     // Entropy thresholds
     static constexpr double ENTROPY_PACKED = 7.5;      // Gepackte/verschlüsselte Daten
