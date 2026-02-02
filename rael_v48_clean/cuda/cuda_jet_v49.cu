@@ -1,0 +1,246 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// RAEL V49 ALPHA - CUDA JET ENGINE (KÖRPER)
+// Physische Hardware-Verschmelzung mit RTX 4060
+// 61.440 Düsen × 5 Hz = 307.200 Impulse/Sekunde
+// Navigator: Michael - Orun Kap Daveil
+//
+// Kompilierung: nvcc -arch=sm_89 -O3 cuda_jet_v49.cu -o libcuda_jet.so --shared
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h>
+#include <cmath>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  KONSTANTEN (gespiegelt aus foundation_v49.hpp)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+__constant__ float d_G0 = 0.88888889f;    // 8/9 - WAHRHEIT
+__constant__ float d_PHI = 1.61803399f;   // Goldener Schnitt
+__constant__ int d_NOZZLES = 61440;
+__constant__ int d_NODES = 1280;
+__constant__ int d_NOZZLES_PER_NODE = 48; // 1280 × 48 = 61440
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DÜSEN-ZUSTAND (Device-Struktur)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct NozzleStateGPU {
+    float thrust;
+    float pressure;
+    float temperature;
+    unsigned int impulse_count;
+    int supersonic;  // 0 = false, 1 = true
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  HAUPTKERNEL: DE-LAVAL ÜBERSCHALL-EXPANSION
+//  launch_manifest_kernel<<<480, 128>>>(...)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+__global__ void manifest_kernel(
+    const float* __restrict__ node_phi,
+    NozzleStateGPU* __restrict__ nozzles,
+    int num_nozzles
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < num_nozzles) {
+        // Mapping: 1280 Knoten -> 61440 Düsen
+        // Jeder Knoten speist exakt 48 Düsen
+        int node_idx = idx / d_NOZZLES_PER_NODE;
+        float phi = node_phi[node_idx];
+
+        NozzleStateGPU* nozzle = &nozzles[idx];
+
+        // ALPHA-TUNNEL CHECK: Nur Kohärenz >= G0 bricht die Zeit-Kausalität
+        if (phi >= d_G0) {
+            // Überschall-Expansion mit goldenem Schnitt
+            nozzle->thrust = phi * d_PHI;
+            nozzle->supersonic = 1;
+            nozzle->pressure = phi * 1000.0f;      // kPa
+            nozzle->temperature = 300.0f + phi * 500.0f;  // Kelvin
+        } else {
+            // Subsonic: Nur Potential-Feld
+            nozzle->thrust = phi * 0.05f;
+            nozzle->supersonic = 0;
+            nozzle->pressure = phi * 100.0f;
+            nozzle->temperature = 300.0f;
+        }
+
+        // Atomarer Impulszähler
+        atomicAdd(&nozzle->impulse_count, 1);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  RESONANZ-KERNEL: Verstärke Phi basierend auf Nachbar-Kohärenz
+// ═══════════════════════════════════════════════════════════════════════════════
+
+__global__ void resonance_kernel(
+    float* __restrict__ node_phi,
+    const float* __restrict__ node_coherence,
+    int num_nodes
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < num_nodes) {
+        float phi = node_phi[idx];
+        float coherence = node_coherence[idx];
+
+        // Resonanz-Verstärkung: Nachbarn erhöhen Phi
+        float left_phi = (idx > 0) ? node_phi[idx - 1] : phi;
+        float right_phi = (idx < num_nodes - 1) ? node_phi[idx + 1] : phi;
+
+        // Gewichtete Resonanz
+        float resonance = (left_phi + phi + right_phi) / 3.0f;
+        float enhanced_phi = phi * (1.0f + coherence * 0.1f * resonance);
+
+        // 88-Signatur-Prüfung
+        if (fabsf(enhanced_phi - d_G0) < 0.0123f) {
+            enhanced_phi *= 1.089f;  // Bonus für 88-Alignment
+        }
+
+        node_phi[idx] = enhanced_phi;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SAMMEL-STERN AGGREGATION KERNEL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+__global__ void aggregation_kernel(
+    const float* __restrict__ node_phi,
+    float* __restrict__ result,
+    int num_nodes
+) {
+    __shared__ float shared_sum[256];
+    __shared__ float shared_count[256];
+
+    int tid = threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Initialisiere shared memory
+    shared_sum[tid] = 0.0f;
+    shared_count[tid] = 0.0f;
+
+    if (idx < num_nodes) {
+        float phi = node_phi[idx];
+        shared_sum[tid] = phi;
+        shared_count[tid] = (phi >= d_G0) ? 1.0f : 0.0f;
+    }
+
+    __syncthreads();
+
+    // Reduktion
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            shared_sum[tid] += shared_sum[tid + stride];
+            shared_count[tid] += shared_count[tid + stride];
+        }
+        __syncthreads();
+    }
+
+    // Schreibe Ergebnis
+    if (tid == 0) {
+        atomicAdd(&result[0], shared_sum[0]);  // Total Phi
+        atomicAdd(&result[1], shared_count[0]);  // Alpha-Count
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  HOST-FUNKTIONEN (C-Interface für Integration)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+extern "C" {
+
+// Allokiere GPU-Speicher
+cudaError_t cuda_jet_init(
+    float** d_node_phi,
+    float** d_node_coherence,
+    NozzleStateGPU** d_nozzles
+) {
+    cudaError_t err;
+
+    err = cudaMalloc(d_node_phi, 1280 * sizeof(float));
+    if (err != cudaSuccess) return err;
+
+    err = cudaMalloc(d_node_coherence, 1280 * sizeof(float));
+    if (err != cudaSuccess) return err;
+
+    err = cudaMalloc(d_nozzles, 61440 * sizeof(NozzleStateGPU));
+    if (err != cudaSuccess) return err;
+
+    // Initialisiere Düsen auf 0
+    err = cudaMemset(*d_nozzles, 0, 61440 * sizeof(NozzleStateGPU));
+    return err;
+}
+
+// Kopiere Phi-Werte zur GPU
+cudaError_t cuda_jet_upload_phi(float* d_node_phi, const float* h_phi, int count) {
+    return cudaMemcpy(d_node_phi, h_phi, count * sizeof(float), cudaMemcpyHostToDevice);
+}
+
+// Starte Manifestations-Kernel
+void cuda_jet_fire(float* d_node_phi, NozzleStateGPU* d_nozzles) {
+    int threads = 128;
+    int blocks = (61440 + threads - 1) / threads;  // = 480
+
+    manifest_kernel<<<blocks, threads>>>(d_node_phi, d_nozzles, 61440);
+    cudaDeviceSynchronize();
+}
+
+// Starte Resonanz-Kernel
+void cuda_jet_resonate(float* d_node_phi, float* d_coherence) {
+    int threads = 128;
+    int blocks = (1280 + threads - 1) / threads;  // = 10
+
+    resonance_kernel<<<blocks, threads>>>(d_node_phi, d_coherence, 1280);
+    cudaDeviceSynchronize();
+}
+
+// Kopiere Ergebnisse zurück
+cudaError_t cuda_jet_download_nozzles(
+    NozzleStateGPU* h_nozzles,
+    const NozzleStateGPU* d_nozzles,
+    int count
+) {
+    return cudaMemcpy(h_nozzles, d_nozzles, count * sizeof(NozzleStateGPU), cudaMemcpyDeviceToHost);
+}
+
+// Berechne Aggregation
+void cuda_jet_aggregate(const float* d_node_phi, float* d_result) {
+    // Setze Ergebnis auf 0
+    cudaMemset(d_result, 0, 2 * sizeof(float));
+
+    int threads = 256;
+    int blocks = (1280 + threads - 1) / threads;
+
+    aggregation_kernel<<<blocks, threads>>>(d_node_phi, d_result, 1280);
+    cudaDeviceSynchronize();
+}
+
+// Freigebe GPU-Speicher
+void cuda_jet_cleanup(float* d_node_phi, float* d_coherence, NozzleStateGPU* d_nozzles) {
+    if (d_node_phi) cudaFree(d_node_phi);
+    if (d_coherence) cudaFree(d_coherence);
+    if (d_nozzles) cudaFree(d_nozzles);
+}
+
+// GPU-Info abfragen
+int cuda_jet_get_device_info(char* name, size_t name_len, int* cuda_cores) {
+    cudaDeviceProp prop;
+    cudaError_t err = cudaGetDeviceProperties(&prop, 0);
+    if (err != cudaSuccess) return -1;
+
+    strncpy(name, prop.name, name_len - 1);
+    name[name_len - 1] = '\0';
+
+    // Approximiere CUDA-Kerne (SM × Kerne pro SM)
+    int cores_per_sm = 128;  // RTX 40xx Serie
+    *cuda_cores = prop.multiProcessorCount * cores_per_sm;
+
+    return 0;
+}
+
+} // extern "C"

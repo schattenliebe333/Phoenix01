@@ -7,7 +7,7 @@ mkdir -p "$OUT" "$MODOUT"
 
 CXX="${CXX:-g++}"
 CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include"
-LDFLAGS=""
+LDFLAGS="-lssl -lcrypto"
 
 SOURCES=(
   "$ROOT/src/core/util.cpp"
@@ -62,6 +62,7 @@ SOURCES=(
   "$ROOT/src/core/observability.cpp"
   "$ROOT/src/core/distributed_task.cpp"
   "$ROOT/src/core/aether_archive.cpp"
+  "$ROOT/src/core/meta_star_orchestrator.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 
@@ -71,4 +72,45 @@ $CXX $CXXFLAGS "${SOURCES[@]}" -o "$OUT/rael" $LDFLAGS
 echo "[build] modules (shared libs) -> $MODOUT"
 $CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_semantic_quint/sem_quint.cpp" -o "$MODOUT/libsem_quint.so"
 $CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_math_formulas/math_pack.cpp" -o "$MODOUT/libmath_pack.so"
+
+# V50 Ultimate (Pure C++)
+echo "[build] V50 Ultimate -> $OUT/rael_v50"
+mkdir -p "$ROOT/src/v50"
+if [[ -f "$ROOT/src/v50/rael_v50_main.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/v50/rael_v50_main.cpp" -o "$OUT/rael_v50"
+    echo "[build] V50 Ultimate compiled successfully"
+fi
+
+# Security Daemon (Attack → Defense Conversion)
+echo "[build] Security Daemon -> $OUT/rael_security"
+mkdir -p "$ROOT/src/security"
+if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_security_daemon.cpp" -o "$OUT/rael_security" -pthread
+    echo "[build] Security Daemon compiled successfully"
+fi
+
+# Windows 11 EXE (Cross-Compilation)
+WIN_CXX="${WIN_CXX:-x86_64-w64-mingw32-g++}"
+if command -v "$WIN_CXX" &> /dev/null; then
+    echo "[build] Windows 11 EXE -> $OUT/windows/rael_v50.exe"
+    mkdir -p "$OUT/windows"
+    if [[ -f "$ROOT/src/windows/rael_v50_windows.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/windows/rael_v50_windows.cpp" \
+            -o "$OUT/windows/rael_v50.exe"
+        echo "[build] Windows EXE compiled successfully"
+    fi
+
+    # Windows Security EXE
+    echo "[build] Windows Security EXE -> $OUT/windows/rael_security.exe"
+    if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_security_daemon.cpp" \
+            -o "$OUT/windows/rael_security.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Security EXE compiled successfully"
+    fi
+else
+    echo "[build] mingw-w64 not found, skipping Windows build"
+fi
+
 echo "[build] done."
