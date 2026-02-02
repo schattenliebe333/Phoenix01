@@ -500,7 +500,7 @@ EMPFEHLUNG
     // Gibt Intensitäts-Bedeutung zurück (RST-basiert)
     std::string get_intensity_meaning(double intensity) const {
         if (intensity > rst::G0) return "KRITISCH - Sofortiges Handeln erforderlich!";
-        if (intensity > rst::G1_7()) return "SEHR HOCH - Schnelles Handeln empfohlen";
+        if (intensity > G1_7()) return "SEHR HOCH - Schnelles Handeln empfohlen";
         if (intensity > rst::G1) return "HOCH - Aufmerksamkeit erforderlich";
         if (intensity > rst::G3) return "MODERAT - Beobachtung empfohlen";
         if (intensity > rst::G5) return "NIEDRIG - Normale Überwachung";

@@ -178,6 +178,8 @@ private:
     std::atomic<uint64_t> total_scans_;
     std::atomic<uint64_t> threats_blocked_;
     std::atomic<uint64_t> files_quarantined_;
+    std::atomic<uint64_t> files_scanned_count_;
+    std::atomic<uint64_t> threats_found_count_;
 
     // Settings
     bool auto_neutralize_;
@@ -196,6 +198,8 @@ public:
         , total_scans_(0)
         , threats_blocked_(0)
         , files_quarantined_(0)
+        , files_scanned_count_(0)
+        , threats_found_count_(0)
         , auto_neutralize_(true)
         , scan_on_start_(true)
         , refresh_rate_ms_(500)
@@ -564,8 +568,8 @@ public:
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
 
         std::cout << "║ " << color::CYAN << "SCAN-STATUS" << color::RESET << "                                                                                                   ║\n";
-        std::cout << "║   Gescannte Dateien: " << std::setw(10) << deep_scanner_.files_scanned_.load() << "                                                                     ║\n";
-        std::cout << "║   Gefundene Threats: " << std::setw(10) << deep_scanner_.threats_found_.load() << "                                                                     ║\n";
+        std::cout << "║   Gescannte Dateien: " << std::setw(10) << files_scanned_count_ << "                                                                     ║\n";
+        std::cout << "║   Gefundene Threats: " << std::setw(10) << threats_found_count_ << "                                                                     ║\n";
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
 
         std::cout << "║ " << color::CYAN << "AKTIONEN" << color::RESET << "                                                                                                      ║\n";
@@ -712,8 +716,8 @@ public:
 
         // Power Bar
         int bar_len = static_cast<int>(std::min(power * 30.0, 50.0));
-        std::cout << "  [" << color::GREEN << std::string(bar_len, '█')
-                  << color::DIM << std::string(50 - bar_len, '░') << color::RESET << "]  ║\n";
+        std::cout << "  [" << color::GREEN << std::string(bar_len, '#')
+                  << color::DIM << std::string(50 - bar_len, '-') << color::RESET << "]  ║\n";
 
         std::cout << "║   Labyrinth Pressure:   " << std::setw(15) << security_core_.get_labyrinth_pressure() << "                                                            ║\n";
         std::cout << "║   Supersonic Mode:      " << std::setw(8) << (security_core_.is_supersonic() ? "JA ★" : "NEIN") << "                                                                   ║\n";
@@ -812,12 +816,10 @@ public:
 
             // Typ als String
             std::string type_str;
-            switch (info.type) {
+            switch (info.kind) {
                 case RAEL_MOD_SEMANTIC: type_str = "SEMANTIC"; break;
                 case RAEL_MOD_MATH:     type_str = "MATH"; break;
-                case RAEL_MOD_IO:       type_str = "IO"; break;
-                case RAEL_MOD_NETWORK:  type_str = "NETWORK"; break;
-                case RAEL_MOD_SECURITY: type_str = "SECURITY"; break;
+                case RAEL_MOD_POLICY:   type_str = "POLICY"; break;
                 default:                type_str = "UNKNOWN"; break;
             }
 
@@ -1328,7 +1330,7 @@ private:
         auto names = module_manager_.list_names();
         for (const auto& name : names) {
             const LoadedModule* mod = module_manager_.get(name);
-            if (mod && mod->api && mod->api->info.type == RAEL_MOD_SEMANTIC) {
+            if (mod && mod->api && mod->api->info.kind == RAEL_MOD_SEMANTIC) {
                 std::string err;
                 if (module_manager_.hotswap_semantic(name, err)) {
                     add_alert(Alert::INFO, "SI", "Hot-Swap zu: " + name, "Semantisches Modul gewechselt");
