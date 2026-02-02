@@ -12,6 +12,8 @@
 #   ./ignite_v49_alpha.sh status    # Alpha-Status-Bericht
 #   ./ignite_v49_alpha.sh test      # Omega-Inference-Test
 #   ./ignite_v49_alpha.sh bridge    # Python-Bridge starten
+#   ./ignite_v49_alpha.sh v50       # V50 Ultimate (165 Formeln)
+#   ./ignite_v49_alpha.sh v50-intent "Text"  # Intent mit Alpha-Bypass
 # ═══════════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -460,6 +462,24 @@ case "${1:-ignite}" in
     bridge)
         status "Starte Python Navigator-Bridge..."
         python3 "$PYTHON_DIR/navigator_alpha.py" "${@:2}"
+        ;;
+    v50)
+        print_banner
+        log_phase "V50 ULTIMATE - 165 FORMELN"
+        status "Starte V50 Ultimate System mit allen Modulen..."
+        python3 "$PYTHON_DIR/rael_v50_ultimate.py" "${@:2}"
+        ;;
+    v50-intent)
+        print_banner
+        log_phase "V50 ULTIMATE - INTENT PROCESSING"
+        status "Verarbeite Intent mit Alpha-Bypass..."
+        python3 -c "
+from rael_v50_ultimate import RAELV50Ultimate
+v50 = RAELV50Ultimate()
+result, status = v50.process_intent('${@:2}')
+print(result)
+v50.print_status()
+" 2>&1
         ;;
     ignite|*)
         full_ignition
