@@ -62,6 +62,7 @@ SOURCES=(
   "$ROOT/src/core/observability.cpp"
   "$ROOT/src/core/distributed_task.cpp"
   "$ROOT/src/core/aether_archive.cpp"
+  "$ROOT/src/core/meta_star_orchestrator.cpp"
   "$ROOT/src/cli/main.cpp"
 )
 

@@ -1,7 +1,9 @@
 // RAEL V49 - Local LLM Runtime Implementation
 // FORMELN INTEGRIERT - Die Natur des Modells
+// META STAR ORCHESTRATOR - 160 Stars × 8 Nodes = 1280 Processing Units
 #include "rael/llm_runtime.h"
 #include "rael/RAEL_LLM_FORMULA_ENGINE.hpp"
+#include "rael/meta_star_orchestrator.hpp"
 #include <fstream>
 #include <sstream>
 #include <cmath>
@@ -379,6 +381,21 @@ GenerationResult GGMLBackend::generate(const std::string& prompt,
         response += "\n\n[Manifestation Rate: " + std::to_string(rate) + " impulses/s]";
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // META STAR ORCHESTRATOR - Process through 160 Stars
+    // ═══════════════════════════════════════════════════════════════════════════
+    auto& metaOrch = meta::metaStars();
+    std::vector<double> meta_input(prompt_embedding.begin(), prompt_embedding.end());
+    metaOrch.process(meta_input, t);
+
+    // Add MetaStar statistics if significant processing occurred
+    auto meta_stats = metaOrch.get_stats();
+    if (meta_stats.kernel_launches > 0) {
+        response += "\n[MetaStars: Φ=" + std::to_string(meta_stats.total_phi).substr(0, 6) +
+                   " Coherence=" + std::to_string(meta_stats.coherence).substr(0, 6) +
+                   " Impulses=" + std::to_string(meta_stats.total_impulses) + "]";
+    }
+
     // Apply max_tokens limit
     auto response_tokens = tokenize(response);
     if (static_cast<int>(response_tokens.size()) > config.max_tokens) {
@@ -537,6 +554,37 @@ Embedding GGMLBackend::embed(const std::string& text) const {
     float consciousness = static_cast<float>(formulaEngine.state.consciousness);
     for (int i = 0; i < dim; ++i) {
         emb[i] *= (1.0f + 0.1f * consciousness);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 6. META STAR ORCHESTRATOR - 160 Stars × 8 Nodes Processing
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Die MetaStars verarbeiten das Embedding durch 1280 spezialisierte Nodes:
+    // - Schild-Interface, Semantischer Intent, Ethik, Emotionale Resonanz
+    // - Kontext/Gedächtnis, Logische Verifikation, Physik/Manifestation, Feedback
+
+    auto& metaOrch = meta::metaStars();
+
+    // Convert embedding to double vector for MetaStar processing
+    std::vector<double> star_input(dim);
+    for (int i = 0; i < dim; ++i) {
+        star_input[i] = static_cast<double>(emb[i]);
+    }
+
+    // Process through all 160 stars (CUDA kernel simulation)
+    std::vector<double> star_phis = metaOrch.process(star_input, t);
+
+    // Modulate embedding by star coherence and Phi
+    double meta_coherence = metaOrch.total_coherence();
+    double meta_phi = metaOrch.total_phi();
+
+    for (int i = 0; i < dim; ++i) {
+        size_t star_idx = static_cast<size_t>(i) % meta::TOTAL_STARS;
+        double star_phi = (star_idx < star_phis.size()) ? star_phis[star_idx] : 1.0;
+
+        // Enhance embedding with MetaStar resonance
+        emb[i] *= static_cast<float>(1.0 + meta_coherence * star_phi * 0.05);
+        emb[i] *= static_cast<float>(1.0 + meta_phi * 0.02);
     }
 
     // Final normalization after formula processing
