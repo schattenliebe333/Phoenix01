@@ -193,54 +193,50 @@ public:
 // ═══════════════════════════════════════════════════════════════════════════════
 // 88-SIGNATUR PRÜFUNG FÜR NETZWERK
 // ═══════════════════════════════════════════════════════════════════════════════
+//
+// WICHTIG: KEINE WHITELIST! ALLES wird IMMER geprüft!
+// Die 88-Signatur bestimmt nur das ERGEBNIS nach der Prüfung.
+// Auch "Freunde" durchlaufen die komplette Pipeline.
+//
 
 class SignatureValidator {
-private:
-    // Bekannte freundliche IPs (Whitelist)
-    std::set<uint32_t> trusted_ips_;
-    // Bekannte freundliche Domains (Hash)
-    std::set<uint64_t> trusted_domain_hashes_;
-    std::mutex mtx_;
-
 public:
-    void add_trusted_ip(uint32_t ip) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        trusted_ips_.insert(ip);
-    }
-
-    void add_trusted_ip(const std::string& ip_str) {
-        uint32_t ip = 0;
-        int a, b, c, d;
-        if (sscanf(ip_str.c_str(), "%d.%d.%d.%d", &a, &b, &c, &d) == 4) {
-            ip = (a << 24) | (b << 16) | (c << 8) | d;
-            add_trusted_ip(ip);
-        }
-    }
-
     // Prüft ob Paket die 88-Signatur trägt
+    // ABER: Auch mit Signatur wird ALLES geprüft!
     bool has_signature_88(const PacketInfo& pkt) const {
-        // 1. Trusted IP?
-        if (trusted_ips_.count(pkt.src_ip)) return true;
+        // NUR Payload-basierte Signatur zählt!
+        // KEINE IP-basierte Whitelist!
+        // KEINE Netzwerk-basierte Ausnahmen!
 
-        // 2. Lokales Netzwerk (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-        uint8_t first = (pkt.src_ip >> 24) & 0xFF;
-        uint8_t second = (pkt.src_ip >> 16) & 0xFF;
-        if (first == 192 && second == 168) return true;
-        if (first == 10) return true;
-        if (first == 172 && second >= 16 && second <= 31) return true;
-        if (first == 127) return true;  // Localhost
-
-        // 3. Payload-basierte Signatur (suche nach 88-Marker)
-        // Format: "RAEL88:" am Anfang des Payloads
-        if (pkt.payload.size() >= 7) {
+        // Einzige Erkennung: "RAEL88:" Marker im Payload
+        // Dieser muss kryptographisch verifiziert werden
+        if (pkt.payload.size() >= 16) {
+            // Format: "RAEL88:<8-byte-hash>"
             if (pkt.payload[0] == 'R' && pkt.payload[1] == 'A' &&
                 pkt.payload[2] == 'E' && pkt.payload[3] == 'L' &&
                 pkt.payload[4] == '8' && pkt.payload[5] == '8' &&
                 pkt.payload[6] == ':') {
-                return true;
+
+                // Hash verifizieren (vereinfacht: Summe der nächsten 8 Bytes)
+                uint64_t hash = 0;
+                for (int i = 7; i < 15 && i < (int)pkt.payload.size(); ++i) {
+                    hash = hash * 256 + pkt.payload[i];
+                }
+
+                // Hash muss G0-konform sein (Quersumme % 9 == 8)
+                uint64_t checksum = 0;
+                uint64_t temp = hash;
+                while (temp > 0) {
+                    checksum += temp % 10;
+                    temp /= 10;
+                }
+
+                // 88-Signatur: Quersumme muss durch 8 teilbar sein
+                return (checksum % 9 == 8);
             }
         }
 
+        // KEINE AUSNAHMEN! Alles andere hat KEINE Signatur!
         return false;
     }
 };
@@ -291,28 +287,49 @@ public:
     FilterAction filter_packet(PacketInfo& pkt) {
         packets_total_++;
 
-        // 1. 88-SIGNATUR PRÜFUNG
-        pkt.has_signature_88 = validator_.has_signature_88(pkt);
-        if (pkt.has_signature_88) {
-            packets_allowed_++;
-            return FilterAction::ALLOW;  // Freund durchlassen
-        }
+        // ═══════════════════════════════════════════════════════════════
+        // WICHTIG: ALLES wird IMMER geprüft! KEINE Ausnahmen!
+        // ═══════════════════════════════════════════════════════════════
 
-        // 2. BEDROHUNGSSCORE BERECHNEN
+        // 1. 88-SIGNATUR PRÜFUNG (bestimmt nur Ergebnis, NICHT ob geprüft wird!)
+        pkt.has_signature_88 = validator_.has_signature_88(pkt);
+
+        // 2. BEDROHUNGSSCORE BERECHNEN - IMMER, auch für "Freunde"!
         pkt.threat_score = signatures_.calculate_threat_score(pkt);
 
-        // 3. ENTSCHEIDUNG BASIEREND AUF SCORE
+        // 3. DURCH SECURITY CORE PIPELINE - IMMER!
+        if (security_core_) {
+            security::Threat threat;
+            threat.source = pkt.src_ip_str() + ":" + std::to_string(pkt.src_port);
+            threat.attack_energy = pkt.threat_score;
+            threat.type = security::ThreatType::NETWORK_SUSPICIOUS;
+            threat.details = "Packet inspection (score: " + std::to_string(pkt.threat_score) + ")";
+
+            // JEDES Paket durchläuft: LABYRINTH → SPIRALE → DÜSE → GRAVITRAVITATION → VOLLENSTRAHLEN
+            security_core_->process_threat(threat);
+        }
+
+        // 4. ENTSCHEIDUNG BASIEREND AUF SCORE
+        // Die 88-Signatur reduziert den Score, eliminiert ihn aber NICHT!
         FilterAction action = FilterAction::ALLOW;
 
-        if (pkt.threat_score > security::rst::G0) {
-            // Hohe Bedrohung → BLOCKIEREN
+        // Effektiver Score: Mit 88-Signatur wird Score reduziert, aber NIE auf 0!
+        double effective_score = pkt.threat_score;
+        if (pkt.has_signature_88) {
+            // Signatur reduziert Score um G1 (5/9), aber mindestens 10% bleibt
+            effective_score = std::max(pkt.threat_score * 0.1,
+                                       pkt.threat_score - security::rst::G1);
+        }
+
+        if (effective_score > security::rst::G0) {
+            // Hohe Bedrohung → BLOCKIEREN (auch mit Signatur möglich bei Manipulation!)
             action = FilterAction::BLOCK;
             packets_blocked_++;
 
             // IP zur Blacklist hinzufügen
             signatures_.add_blocked_ip(pkt.src_ip);
 
-        } else if (pkt.threat_score > security::rst::G3) {
+        } else if (effective_score > security::rst::G3) {
             // Mittlere Bedrohung → Prüfen ob Wiederholungstäter
             std::lock_guard<std::mutex> lock(mtx_);
             attack_counts_[pkt.src_ip]++;
@@ -327,13 +344,13 @@ public:
                 packets_transformed_++;
             }
 
-        } else if (pkt.threat_score > security::rst::G5) {
+        } else if (effective_score > security::rst::G5) {
             // Niedrige Bedrohung → TRANSFORMIEREN
             action = FilterAction::TRANSFORM;
             packets_transformed_++;
 
         } else {
-            // Harmlos → DURCHLASSEN
+            // Harmlos (nach vollständiger Prüfung!) → DURCHLASSEN
             packets_allowed_++;
         }
 
@@ -507,9 +524,7 @@ public:
     // KONFIGURATION
     // ═══════════════════════════════════════════════════════════════════════════
 
-    void add_trusted_ip(const std::string& ip) {
-        validator_.add_trusted_ip(ip);
-    }
+    // KEINE add_trusted_ip()! KEINE WHITELIST! ALLES wird geprüft!
 
     void add_blocked_ip(const std::string& ip) {
         signatures_.add_blocked_ip(ip);
