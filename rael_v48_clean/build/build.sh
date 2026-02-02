@@ -96,6 +96,13 @@ if [[ -f "$ROOT/src/security/rael_live_monitor.cpp" ]]; then
     echo "[build] RST Live Monitor compiled successfully"
 fi
 
+# RAEL Security Dashboard (Unified GUI - All Scanners)
+echo "[build] Security Dashboard -> $OUT/rael_dashboard"
+if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_dashboard.cpp" -o "$OUT/rael_dashboard" -pthread
+    echo "[build] Security Dashboard compiled successfully"
+fi
+
 # Windows 11 EXE (Cross-Compilation)
 WIN_CXX="${WIN_CXX:-x86_64-w64-mingw32-g++}"
 if command -v "$WIN_CXX" &> /dev/null; then
@@ -124,6 +131,15 @@ if command -v "$WIN_CXX" &> /dev/null; then
             "$ROOT/src/security/rael_live_monitor.cpp" \
             -o "$OUT/windows/rael_monitor.exe" -liphlpapi -lpsapi
         echo "[build] Windows Live Monitor EXE compiled successfully"
+    fi
+
+    # Windows Security Dashboard EXE
+    echo "[build] Windows Security Dashboard EXE -> $OUT/windows/rael_dashboard.exe"
+    if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_dashboard.cpp" \
+            -o "$OUT/windows/rael_dashboard.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Security Dashboard EXE compiled successfully"
     fi
 else
     echo "[build] mingw-w64 not found, skipping Windows build"

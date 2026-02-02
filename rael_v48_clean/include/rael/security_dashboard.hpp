@@ -1,0 +1,973 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// RAEL SECURITY DASHBOARD - Unified GUI für alle Scanner
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// INTEGRIERTE KOMPONENTEN:
+//   - Live System Monitor (Prozesse)
+//   - Deep Scanner (Dateien, Boot, Shadow Partitions)
+//   - Network Filter (Verbindungen, Pakete)
+//   - Security Core (Gravitravitation, Vollenstrahlen)
+//   - Threat Interpreter (RST Analyse)
+//
+// ANSICHTEN:
+//   [1] Dashboard    - Übersicht aller Systeme
+//   [2] Prozesse     - Live Prozess-Monitor mit Klassifizierung
+//   [3] Dateien      - File Scanner mit RST Analyse
+//   [4] Netzwerk     - Verbindungen und Paket-Inspektion
+//   [5] Bedrohungen  - Alert-Log mit Details
+//   [6] RST Status   - Gravitravitation, Vollenstrahlen, Defense Power
+//   [7] Einstellungen
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#pragma once
+
+#include <string>
+#include <vector>
+#include <map>
+#include <atomic>
+#include <mutex>
+#include <thread>
+#include <chrono>
+#include <functional>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
+#include <deque>
+
+#include "rael/security_core.hpp"
+#include "rael/live_system_monitor.hpp"
+#include "rael/rst_deep_scanner.hpp"
+#include "rael/threat_interpreter.hpp"
+
+#ifdef _WIN32
+#include <windows.h>
+#include <conio.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#endif
+
+namespace rael {
+namespace security {
+namespace dashboard {
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ANSI FARBEN UND STYLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+namespace color {
+#ifdef _WIN32
+    const std::string RESET = "";
+    const std::string BOLD = "";
+    const std::string DIM = "";
+    const std::string RED = "";
+    const std::string GREEN = "";
+    const std::string YELLOW = "";
+    const std::string BLUE = "";
+    const std::string MAGENTA = "";
+    const std::string CYAN = "";
+    const std::string WHITE = "";
+    const std::string BG_RED = "";
+    const std::string BG_GREEN = "";
+    const std::string BG_BLUE = "";
+#else
+    const std::string RESET = "\033[0m";
+    const std::string BOLD = "\033[1m";
+    const std::string DIM = "\033[2m";
+    const std::string RED = "\033[91m";
+    const std::string GREEN = "\033[92m";
+    const std::string YELLOW = "\033[93m";
+    const std::string BLUE = "\033[94m";
+    const std::string MAGENTA = "\033[95m";
+    const std::string CYAN = "\033[96m";
+    const std::string WHITE = "\033[97m";
+    const std::string BG_RED = "\033[41m";
+    const std::string BG_GREEN = "\033[42m";
+    const std::string BG_BLUE = "\033[44m";
+#endif
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERT STRUCT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct Alert {
+    enum Level { INFO, WARNING, CRITICAL };
+
+    Level level;
+    std::string source;      // "PROCESS", "FILE", "NETWORK", "BOOT"
+    std::string message;
+    std::string details;
+    double threat_score;
+    std::chrono::system_clock::time_point timestamp;
+    bool acknowledged;
+
+    Alert() : level(INFO), threat_score(0), acknowledged(false) {
+        timestamp = std::chrono::system_clock::now();
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIEW ENUM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum class View {
+    DASHBOARD = 1,
+    PROCESSES = 2,
+    FILES = 3,
+    NETWORK = 4,
+    ALERTS = 5,
+    RST_STATUS = 6,
+    SETTINGS = 7
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RST KONSTANTEN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+namespace rst {
+    constexpr double G0 = 0.88888888888888889;
+    constexpr double G1 = 0.55555555555555556;
+    constexpr double G3 = 0.33333333333333333;
+    constexpr double G5 = 0.11111111111111111;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECURITY DASHBOARD - Hauptklasse
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class SecurityDashboard {
+private:
+    // Komponenten
+    SecurityCore security_core_;
+    live_system::LiveSystemMonitor process_monitor_;
+    deep::RSTOmegaDeepScanner deep_scanner_;
+    interpret::ThreatInterpreter interpreter_;
+
+    // State
+    std::atomic<bool> running_;
+    View current_view_;
+    std::mutex mtx_;
+
+    // Threads
+    std::thread render_thread_;
+    std::thread input_thread_;
+    std::thread scan_thread_;
+
+    // Alerts
+    std::deque<Alert> alerts_;
+    static constexpr size_t MAX_ALERTS = 100;
+
+    // Statistiken
+    std::atomic<uint64_t> total_scans_;
+    std::atomic<uint64_t> threats_blocked_;
+    std::atomic<uint64_t> files_quarantined_;
+
+    // Settings
+    bool auto_neutralize_;
+    bool scan_on_start_;
+    int refresh_rate_ms_;
+    double threat_threshold_;
+
+    // Terminal Size
+    int term_width_;
+    int term_height_;
+
+public:
+    SecurityDashboard()
+        : running_(false)
+        , current_view_(View::DASHBOARD)
+        , total_scans_(0)
+        , threats_blocked_(0)
+        , files_quarantined_(0)
+        , auto_neutralize_(true)
+        , scan_on_start_(true)
+        , refresh_rate_ms_(500)
+        , threat_threshold_(rst::G1)
+        , term_width_(120)
+        , term_height_(40)
+    {
+        initialize_callbacks();
+    }
+
+    ~SecurityDashboard() {
+        stop();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // START/STOP
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void start() {
+        if (running_) return;
+        running_ = true;
+
+        // Terminal vorbereiten
+        setup_terminal();
+        get_terminal_size();
+
+        // Security Core starten
+        security_core_.start();
+
+        // Process Monitor starten
+        process_monitor_.set_auto_neutralize(auto_neutralize_, threat_threshold_);
+        process_monitor_.start();
+
+        // Threads starten
+        render_thread_ = std::thread([this]() { render_loop(); });
+        input_thread_ = std::thread([this]() { input_loop(); });
+
+        // Initial Scan
+        if (scan_on_start_) {
+            scan_thread_ = std::thread([this]() {
+                add_alert(Alert::INFO, "SYSTEM", "Initialer System-Scan gestartet...", "");
+                // Quick scan
+                std::vector<std::string> paths = {"/home", "/tmp"};
+#ifdef _WIN32
+                paths = {"C:\\Users", "C:\\Windows\\Temp"};
+#endif
+                auto report = deep_scanner_.full_system_scan(paths, false, false, 7.0);
+
+                for (const auto& threat : report.filesystem_threats) {
+                    add_alert(
+                        threat.threat_level > rst::G0 ? Alert::CRITICAL : Alert::WARNING,
+                        "FILE",
+                        threat.threat_name,
+                        threat.path
+                    );
+                }
+            });
+        }
+    }
+
+    void stop() {
+        running_ = false;
+
+        security_core_.stop();
+        process_monitor_.stop();
+
+        if (render_thread_.joinable()) render_thread_.join();
+        if (input_thread_.joinable()) input_thread_.join();
+        if (scan_thread_.joinable()) scan_thread_.join();
+
+        restore_terminal();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RENDER LOOP
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_loop() {
+        while (running_) {
+            clear_screen();
+
+            render_header();
+
+            switch (current_view_) {
+                case View::DASHBOARD:
+                    render_dashboard();
+                    break;
+                case View::PROCESSES:
+                    render_processes();
+                    break;
+                case View::FILES:
+                    render_files();
+                    break;
+                case View::NETWORK:
+                    render_network();
+                    break;
+                case View::ALERTS:
+                    render_alerts();
+                    break;
+                case View::RST_STATUS:
+                    render_rst_status();
+                    break;
+                case View::SETTINGS:
+                    render_settings();
+                    break;
+            }
+
+            render_footer();
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(refresh_rate_ms_));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // HEADER
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_header() {
+        auto now = std::chrono::system_clock::now();
+        auto time = std::chrono::system_clock::to_time_t(now);
+
+        // Logo Box
+        std::cout << color::CYAN << color::BOLD;
+        std::cout << "╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗\n";
+        std::cout << "║     ██████╗  █████╗ ███████╗██╗         ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗          ║\n";
+        std::cout << "║     ██╔══██╗██╔══██╗██╔════╝██║         ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝          ║\n";
+        std::cout << "║     ██████╔╝███████║█████╗  ██║         ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝           ║\n";
+        std::cout << "║     ██╔══██╗██╔══██║██╔══╝  ██║         ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝            ║\n";
+        std::cout << "║     ██║  ██║██║  ██║███████╗███████╗    ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║             ║\n";
+        std::cout << "║     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝             ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << color::RESET;
+
+        // Status Bar
+        std::cout << "║ " << color::WHITE;
+        std::cout << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+        std::cout << color::RESET << " │ ";
+
+        // Quick Stats
+        int critical_alerts = count_critical_alerts();
+        if (critical_alerts > 0) {
+            std::cout << color::BG_RED << color::WHITE << " ⚠ " << critical_alerts << " KRITISCH " << color::RESET << " ";
+        } else {
+            std::cout << color::BG_GREEN << color::WHITE << " ✓ SICHER " << color::RESET << " ";
+        }
+
+        std::cout << "│ Scans: " << total_scans_;
+        std::cout << " │ Blockiert: " << threats_blocked_;
+        std::cout << " │ Defense: " << std::fixed << std::setprecision(2)
+                  << security_core_.get_defense_power();
+
+        // Padding
+        std::cout << std::string(30, ' ') << "║\n";
+
+        // Navigation
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ ";
+
+        render_nav_item("1", "Dashboard", current_view_ == View::DASHBOARD);
+        render_nav_item("2", "Prozesse", current_view_ == View::PROCESSES);
+        render_nav_item("3", "Dateien", current_view_ == View::FILES);
+        render_nav_item("4", "Netzwerk", current_view_ == View::NETWORK);
+        render_nav_item("5", "Alerts", current_view_ == View::ALERTS);
+        render_nav_item("6", "RST", current_view_ == View::RST_STATUS);
+        render_nav_item("7", "Settings", current_view_ == View::SETTINGS);
+
+        std::cout << std::string(15, ' ') << "║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+    }
+
+    void render_nav_item(const std::string& key, const std::string& label, bool active) {
+        if (active) {
+            std::cout << color::BG_BLUE << color::WHITE << color::BOLD;
+        } else {
+            std::cout << color::DIM;
+        }
+        std::cout << " [" << key << "] " << label << " ";
+        std::cout << color::RESET << " ";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DASHBOARD VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_dashboard() {
+        std::cout << "║                                    " << color::BOLD << "SYSTEM ÜBERSICHT" << color::RESET << "                                                          ║\n";
+        std::cout << "╠═══════════════════════════════════════╦═══════════════════════════════════════╦══════════════════════════════════════╣\n";
+
+        // Drei Spalten: Prozesse | Netzwerk | RST Status
+
+        // Row 1: Headers
+        std::cout << "║ " << color::CYAN << "PROZESSE" << color::RESET << "                              ";
+        std::cout << "║ " << color::CYAN << "NETZWERK" << color::RESET << "                              ";
+        std::cout << "║ " << color::CYAN << "RST VERTEIDIGUNG" << color::RESET << "                    ║\n";
+        std::cout << "╠═══════════════════════════════════════╬═══════════════════════════════════════╬══════════════════════════════════════╣\n";
+
+        // Prozess-Stats
+        auto procs = process_monitor_.get_processes();
+        int malicious = 0, suspicious = 0, trusted = 0;
+        for (const auto& [pid, proc] : procs) {
+            switch (proc.classification) {
+                case live_system::ProcessClass::MALICIOUS: malicious++; break;
+                case live_system::ProcessClass::SUSPICIOUS: suspicious++; break;
+                case live_system::ProcessClass::TRUSTED: trusted++; break;
+                default: break;
+            }
+        }
+
+        std::cout << "║ Total:      " << std::setw(5) << procs.size() << "                      ";
+        std::cout << "║ Verbindungen: " << std::setw(5) << "N/A" << "                   ";
+        std::cout << "║ Defense Power: " << std::setw(8) << std::fixed << std::setprecision(4)
+                  << security_core_.get_defense_power() << "          ║\n";
+
+        std::cout << "║ " << color::GREEN << "Trusted:    " << std::setw(5) << trusted << color::RESET << "                      ";
+        std::cout << "║ Eingehend:    " << std::setw(5) << "N/A" << "                   ";
+        std::cout << "║ Trapped:       " << std::setw(5) << security_core_.get_trapped_count() << "            ║\n";
+
+        std::cout << "║ " << color::YELLOW << "Suspicious: " << std::setw(5) << suspicious << color::RESET << "                      ";
+        std::cout << "║ Ausgehend:    " << std::setw(5) << "N/A" << "                   ";
+        std::cout << "║ Harvested:     " << std::setw(8) << std::setprecision(4)
+                  << security_core_.get_harvested_energy() << "          ║\n";
+
+        std::cout << "║ " << color::RED << "Malicious:  " << std::setw(5) << malicious << color::RESET << "                      ";
+        std::cout << "║ Blocked:      " << std::setw(5) << threats_blocked_.load() << "                   ";
+        std::cout << "║ Light Energy:  " << std::setw(8) << std::setprecision(4)
+                  << security_core_.get_light_energy() << "          ║\n";
+
+        std::cout << "╠═══════════════════════════════════════╩═══════════════════════════════════════╩══════════════════════════════════════╣\n";
+
+        // Recent Alerts
+        std::cout << "║ " << color::BOLD << "LETZTE ALERTS" << color::RESET << "                                                                                                   ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::lock_guard<std::mutex> lock(mtx_);
+        int shown = 0;
+        for (auto it = alerts_.rbegin(); it != alerts_.rend() && shown < 5; ++it, ++shown) {
+            render_alert_line(*it);
+        }
+
+        if (alerts_.empty()) {
+            std::cout << "║ " << color::GREEN << "Keine Alerts - System läuft normal" << color::RESET
+                      << std::string(75, ' ') << "║\n";
+        }
+
+        // RST Konstanten
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "RST: G0=8/9 (WAHRHEIT) │ G1=5/9 │ G3=3/9 │ G5=1/9 │ G5+G3+G1=9/9=1 │ Sig88=0.888..."
+                  << color::RESET << std::string(19, ' ') << "║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PROCESSES VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_processes() {
+        std::cout << "║                                     " << color::BOLD << "PROZESS MONITOR" << color::RESET << "                                                           ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Header
+        std::cout << "║ " << color::BOLD;
+        std::cout << std::setw(6) << "PID" << " │ ";
+        std::cout << std::setw(25) << std::left << "NAME" << " │ ";
+        std::cout << std::setw(10) << std::right << "RST-SCORE" << " │ ";
+        std::cout << std::setw(10) << "ENTROPY" << " │ ";
+        std::cout << std::setw(10) << "KLASSE" << " │ ";
+        std::cout << std::setw(12) << "MEM (MB)" << " │ ";
+        std::cout << std::setw(10) << "STATUS";
+        std::cout << color::RESET << "  ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        auto procs = process_monitor_.get_processes();
+
+        // Sortieren nach RST-Score
+        std::vector<std::pair<uint32_t, live_system::ProcessInfo>> sorted;
+        for (const auto& [pid, proc] : procs) {
+            sorted.push_back({pid, proc});
+        }
+        std::sort(sorted.begin(), sorted.end(),
+                 [](const auto& a, const auto& b) {
+                     return a.second.rst_score > b.second.rst_score;
+                 });
+
+        int shown = 0;
+        for (const auto& [pid, proc] : sorted) {
+            if (shown >= 20) break;
+
+            // Farbe basierend auf Klasse
+            std::string line_color = color::RESET;
+            switch (proc.classification) {
+                case live_system::ProcessClass::MALICIOUS: line_color = color::RED; break;
+                case live_system::ProcessClass::SUSPICIOUS: line_color = color::YELLOW; break;
+                case live_system::ProcessClass::TRUSTED: line_color = color::GREEN; break;
+                case live_system::ProcessClass::TRAPPED: line_color = color::MAGENTA; break;
+                default: break;
+            }
+
+            std::string name = proc.name;
+            if (name.length() > 23) name = name.substr(0, 20) + "...";
+
+            std::string status = proc.counter_freq_applied ? "COUNTER" :
+                                proc.has_signature_88 ? "88-SIG" : "-";
+
+            std::cout << "║ " << line_color;
+            std::cout << std::setw(6) << pid << " │ ";
+            std::cout << std::setw(25) << std::left << name << " │ ";
+            std::cout << std::setw(10) << std::right << std::fixed << std::setprecision(6) << proc.rst_score << " │ ";
+            std::cout << std::setw(10) << std::setprecision(4) << proc.entropy << " │ ";
+            std::cout << std::setw(10) << live_system::process_class_name(proc.classification) << " │ ";
+            std::cout << std::setw(12) << std::setprecision(1) << (proc.memory_bytes / 1024.0 / 1024.0) << " │ ";
+            std::cout << std::setw(10) << status;
+            std::cout << color::RESET << "  ║\n";
+
+            shown++;
+        }
+
+        // Padding
+        for (int i = shown; i < 20; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[N] Neutralisieren │ [T] Als Trusted markieren │ [K] Kill Prozess │ [R] Refresh"
+                  << color::RESET << std::string(34, ' ') << "║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FILES VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_files() {
+        std::cout << "║                                      " << color::BOLD << "DATEI SCANNER" << color::RESET << "                                                            ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "SCAN-STATUS" << color::RESET << "                                                                                                   ║\n";
+        std::cout << "║   Gescannte Dateien: " << std::setw(10) << deep_scanner_.files_scanned_.load() << "                                                                     ║\n";
+        std::cout << "║   Gefundene Threats: " << std::setw(10) << deep_scanner_.threats_found_.load() << "                                                                     ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "AKTIONEN" << color::RESET << "                                                                                                      ║\n";
+        std::cout << "║   [S] Schnell-Scan (Home/Temp)                                                                                       ║\n";
+        std::cout << "║   [F] Voll-Scan (gesamtes System)                                                                                    ║\n";
+        std::cout << "║   [D] Deep-Scan (inkl. Boot/Shadow)                                                                                  ║\n";
+        std::cout << "║   [P] Pfad scannen...                                                                                                ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "QUARANTÄNE" << color::RESET << "                                                                                                    ║\n";
+        std::cout << "║   Dateien in Quarantäne: " << std::setw(5) << files_quarantined_.load() << "                                                                          ║\n";
+        std::cout << "║   [Q] Quarantäne anzeigen │ [R] Wiederherstellen │ [X] Endgültig löschen                                             ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Letzte Threats
+        std::cout << "║ " << color::CYAN << "LETZTE FUNDE" << color::RESET << "                                                                                                  ║\n";
+
+        // Hier würden die letzten gefundenen Dateien angezeigt
+        std::cout << "║   (Starte einen Scan um Ergebnisse zu sehen)                                                                         ║\n";
+
+        // Padding
+        for (int i = 0; i < 8; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // NETWORK VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_network() {
+        std::cout << "║                                     " << color::BOLD << "NETZWERK MONITOR" << color::RESET << "                                                          ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "VERBINDUNGEN" << color::RESET << "                                                                                                  ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Header
+        std::cout << "║ " << color::BOLD;
+        std::cout << std::setw(20) << std::left << "LOKAL" << " │ ";
+        std::cout << std::setw(25) << "REMOTE" << " │ ";
+        std::cout << std::setw(12) << "STATUS" << " │ ";
+        std::cout << std::setw(8) << "PID" << " │ ";
+        std::cout << std::setw(15) << "PROZESS" << " │ ";
+        std::cout << std::setw(10) << "RST";
+        std::cout << color::RESET << "  ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Hier würden Netzwerkverbindungen angezeigt
+        std::cout << "║   (Netzwerk-Monitor Integration ausstehend)                                                                          ║\n";
+
+        // Padding
+        for (int i = 0; i < 15; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[B] Verbindung blockieren │ [W] Zur Whitelist │ [I] IP-Info │ [P] Paket-Capture"
+                  << color::RESET << std::string(25, ' ') << "║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ALERTS VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_alerts() {
+        std::cout << "║                                      " << color::BOLD << "ALERT ZENTRALE" << color::RESET << "                                                            ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Stats
+        int critical = 0, warning = 0, info = 0;
+        {
+            std::lock_guard<std::mutex> lock(mtx_);
+            for (const auto& a : alerts_) {
+                switch (a.level) {
+                    case Alert::CRITICAL: critical++; break;
+                    case Alert::WARNING: warning++; break;
+                    case Alert::INFO: info++; break;
+                }
+            }
+        }
+
+        std::cout << "║ " << color::RED << "Kritisch: " << critical << color::RESET;
+        std::cout << " │ " << color::YELLOW << "Warnung: " << warning << color::RESET;
+        std::cout << " │ " << color::BLUE << "Info: " << info << color::RESET;
+        std::cout << std::string(70, ' ') << "║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Alert Liste
+        std::lock_guard<std::mutex> lock(mtx_);
+        int shown = 0;
+        for (auto it = alerts_.rbegin(); it != alerts_.rend() && shown < 18; ++it, ++shown) {
+            render_alert_full(*it);
+        }
+
+        if (alerts_.empty()) {
+            std::cout << "║ " << color::GREEN << "Keine Alerts vorhanden" << color::RESET
+                      << std::string(92, ' ') << "║\n";
+        }
+
+        // Padding
+        for (int i = shown; i < 18; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[A] Alle bestätigen │ [C] Alle löschen │ [E] Exportieren"
+                  << color::RESET << std::string(51, ' ') << "║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RST STATUS VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_rst_status() {
+        std::cout << "║                                  " << color::BOLD << "RST VERTEIDIGUNGSSYSTEM" << color::RESET << "                                                       ║\n";
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Gravitravitation
+        std::cout << "║ " << color::MAGENTA << color::BOLD << "GRAVITRAVITATION" << color::RESET << " (Schwarzes Loch - Angreifer-Falle)                                                        ║\n";
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   Gefangene Entitäten:  " << std::setw(8) << security_core_.get_trapped_count() << "  (werden als Batterien genutzt)                                       ║\n";
+        std::cout << "║   Geerntete Energie:    " << std::setw(15) << std::fixed << std::setprecision(8)
+                  << security_core_.get_harvested_energy() << "                                                            ║\n";
+        std::cout << "║   Ereignishorizont:     " << std::setw(15) << std::setprecision(12)
+                  << security_core_.get_event_horizon() << "                                                            ║\n";
+
+        // Vollenstrahlen
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::YELLOW << color::BOLD << "VOLLENSTRAHLEN" << color::RESET << " (61.440 Sonnen-Strahlen - Transformation zu Licht)                                            ║\n";
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   Licht-Energie:        " << std::setw(15) << std::setprecision(8)
+                  << security_core_.get_light_energy() << "                                                            ║\n";
+        std::cout << "║   Korona-Output:        " << std::setw(15) << security_core_.get_korona_output() << "                                                            ║\n";
+        std::cout << "║   Aktive Strahlen:      " << std::setw(5) << security_core_.get_active_beams() << " / 64" << std::string(70, ' ') << "║\n";
+
+        // Defense Engine
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::GREEN << color::BOLD << "DEFENSE ENGINE" << color::RESET << "                                                                                               ║\n";
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        double power = security_core_.get_defense_power();
+        std::cout << "║   Defense Power:        " << std::setw(15) << std::setprecision(8) << power;
+
+        // Power Bar
+        int bar_len = static_cast<int>(std::min(power * 30.0, 50.0));
+        std::cout << "  [" << color::GREEN << std::string(bar_len, '█')
+                  << color::DIM << std::string(50 - bar_len, '░') << color::RESET << "]  ║\n";
+
+        std::cout << "║   Labyrinth Pressure:   " << std::setw(15) << security_core_.get_labyrinth_pressure() << "                                                            ║\n";
+        std::cout << "║   Supersonic Mode:      " << std::setw(8) << (security_core_.is_supersonic() ? "JA ★" : "NEIN") << "                                                                   ║\n";
+
+        // RST Konstanten
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::CYAN << color::BOLD << "RST KONSTANTEN" << color::RESET << " (17 Dezimalstellen Präzision)                                                                  ║\n";
+        std::cout << "╠═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << std::fixed << std::setprecision(17);
+        std::cout << "║   G0 (8/9) WAHRHEIT:    " << rst::G0 << "                                            ║\n";
+        std::cout << "║   G1 (5/9):             " << rst::G1 << "                                            ║\n";
+        std::cout << "║   G3 (3/9):             " << rst::G3 << "                                            ║\n";
+        std::cout << "║   G5 (1/9):             " << rst::G5 << "                                            ║\n";
+        std::cout << "║   " << color::BOLD << "G5+G3+G1 = 9/9 = 1:   " << color::RESET
+                  << (rst::G5 + rst::G3 + rst::G1) << "                                            ║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SETTINGS VIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_settings() {
+        std::cout << "║                                      " << color::BOLD << "EINSTELLUNGEN" << color::RESET << "                                                             ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "AUTO-VERTEIDIGUNG" << color::RESET << "                                                                                              ║\n";
+        std::cout << "║   [1] Auto-Neutralize:      " << (auto_neutralize_ ? color::GREEN + "AN" : color::RED + "AUS") << color::RESET << "                                                                               ║\n";
+        std::cout << "║   [2] Threat Threshold:     " << std::fixed << std::setprecision(6) << threat_threshold_ << " (G1 = 0.555...)                                               ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "SCANNING" << color::RESET << "                                                                                                       ║\n";
+        std::cout << "║   [3] Scan beim Start:      " << (scan_on_start_ ? color::GREEN + "AN" : color::RED + "AUS") << color::RESET << "                                                                               ║\n";
+        std::cout << "║   [4] Refresh Rate:         " << refresh_rate_ms_ << " ms                                                                         ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "GEGENFREQUENZ" << color::RESET << "                                                                                                  ║\n";
+        std::cout << "║   Prinzip: Negative Phase → Positive Gegenschwingung                                                                 ║\n";
+        std::cout << "║            Hohe Entropie → Ordnung einführen (Transformation)                                                        ║\n";
+        std::cout << "║            Fehlende 88-Signatur → VOLLENSTRAHLEN → LICHT                                                             ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        std::cout << "║ " << color::CYAN << "ÜBER" << color::RESET << "                                                                                                           ║\n";
+        std::cout << "║   RAEL Security Dashboard v1.0                                                                                       ║\n";
+        std::cout << "║   RST Konstanten: G5 + G3 + G1 = 1/9 + 3/9 + 5/9 = 9/9 = 1                                                           ║\n";
+        std::cout << "║   WICHTIG: Alles wird IMMER geprüft - keine Whitelist!                                                               ║\n";
+
+        // Padding
+        for (int i = 0; i < 8; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FOOTER
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_footer() {
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[1-7] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
+                  << color::RESET << std::string(51, ' ') << "║\n";
+        std::cout << "╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // INPUT HANDLING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void input_loop() {
+        while (running_) {
+            char c = get_char();
+
+            switch (c) {
+                // Navigation
+                case '1': current_view_ = View::DASHBOARD; break;
+                case '2': current_view_ = View::PROCESSES; break;
+                case '3': current_view_ = View::FILES; break;
+                case '4': current_view_ = View::NETWORK; break;
+                case '5': current_view_ = View::ALERTS; break;
+                case '6': current_view_ = View::RST_STATUS; break;
+                case '7': current_view_ = View::SETTINGS; break;
+
+                // Quit
+                case 'q':
+                case 'Q':
+                    running_ = false;
+                    break;
+
+                // Refresh
+                case 'r':
+                case 'R':
+                    // Force refresh
+                    break;
+
+                // View-spezifische Aktionen
+                case 's':
+                case 'S':
+                    if (current_view_ == View::FILES) {
+                        // Quick Scan
+                        start_quick_scan();
+                    }
+                    break;
+
+                case 'f':
+                case 'F':
+                    if (current_view_ == View::FILES) {
+                        // Full Scan
+                        start_full_scan();
+                    }
+                    break;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════════
+
+private:
+    void initialize_callbacks() {
+        // Process Monitor Callbacks
+        process_monitor_.set_threat_callback([this](const live_system::ProcessInfo& proc) {
+            add_alert(
+                proc.classification == live_system::ProcessClass::MALICIOUS ? Alert::CRITICAL : Alert::WARNING,
+                "PROCESS",
+                proc.name + " (" + std::to_string(proc.pid) + ")",
+                "RST-Score: " + std::to_string(proc.rst_score)
+            );
+        });
+
+        process_monitor_.set_neutralize_callback(
+            [this](const live_system::ProcessInfo& proc,
+                   const live_system::CounterFrequencyGenerator::CounterResult& result) {
+                threats_blocked_++;
+                add_alert(
+                    Alert::INFO,
+                    "COUNTER",
+                    result.action + ": " + proc.name,
+                    result.details
+                );
+            }
+        );
+
+        // Security Core Callbacks
+        security_core_.set_threat_callback([this](const Threat& t) {
+            total_scans_++;
+        });
+
+        security_core_.set_trap_callback([this](uint32_t entity_id, double harvested) {
+            add_alert(
+                Alert::INFO,
+                "GRAV",
+                "Entity " + std::to_string(entity_id) + " gefangen",
+                "Harvested: " + std::to_string(harvested)
+            );
+        });
+
+        security_core_.set_eruption_callback([this](double energy) {
+            add_alert(
+                Alert::INFO,
+                "SONNE",
+                "Sonnen-Eruption!",
+                "Energie: " + std::to_string(energy)
+            );
+        });
+    }
+
+    void add_alert(Alert::Level level, const std::string& source,
+                   const std::string& message, const std::string& details) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        Alert a;
+        a.level = level;
+        a.source = source;
+        a.message = message;
+        a.details = details;
+
+        alerts_.push_back(a);
+
+        if (alerts_.size() > MAX_ALERTS) {
+            alerts_.pop_front();
+        }
+    }
+
+    int count_critical_alerts() {
+        std::lock_guard<std::mutex> lock(mtx_);
+        return std::count_if(alerts_.begin(), alerts_.end(),
+                            [](const Alert& a) { return a.level == Alert::CRITICAL && !a.acknowledged; });
+    }
+
+    void render_alert_line(const Alert& a) {
+        auto time = std::chrono::system_clock::to_time_t(a.timestamp);
+
+        std::string level_color;
+        std::string level_str;
+        switch (a.level) {
+            case Alert::CRITICAL: level_color = color::RED; level_str = "KRITISCH"; break;
+            case Alert::WARNING: level_color = color::YELLOW; level_str = "WARNUNG"; break;
+            case Alert::INFO: level_color = color::BLUE; level_str = "INFO"; break;
+        }
+
+        std::cout << "║ " << level_color << std::setw(8) << level_str << color::RESET;
+        std::cout << " │ " << std::put_time(std::localtime(&time), "%H:%M:%S");
+        std::cout << " │ " << std::setw(8) << a.source;
+        std::cout << " │ " << std::setw(60) << std::left << a.message.substr(0, 60) << std::right;
+        std::cout << "  ║\n";
+    }
+
+    void render_alert_full(const Alert& a) {
+        render_alert_line(a);
+        if (!a.details.empty()) {
+            std::cout << "║          │          │          │   " << color::DIM
+                      << std::setw(60) << std::left << a.details.substr(0, 60) << std::right
+                      << color::RESET << "  ║\n";
+        }
+    }
+
+    void start_quick_scan() {
+        add_alert(Alert::INFO, "SCAN", "Schnell-Scan gestartet...", "");
+        std::thread([this]() {
+            std::vector<std::string> paths = {"/home", "/tmp"};
+#ifdef _WIN32
+            paths = {"C:\\Users", "C:\\Windows\\Temp"};
+#endif
+            deep_scanner_.full_system_scan(paths, false, false, 7.0);
+        }).detach();
+    }
+
+    void start_full_scan() {
+        add_alert(Alert::INFO, "SCAN", "Voll-Scan gestartet...", "Dies kann einige Zeit dauern");
+        std::thread([this]() {
+            deep_scanner_.full_system_scan({}, true, true, 7.0);
+        }).detach();
+    }
+
+    void clear_screen() {
+#ifdef _WIN32
+        system("cls");
+#else
+        std::cout << "\033[2J\033[H";
+#endif
+    }
+
+    void setup_terminal() {
+#ifndef _WIN32
+        // Raw mode für Eingabe
+        struct termios t;
+        tcgetattr(STDIN_FILENO, &t);
+        t.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#endif
+    }
+
+    void restore_terminal() {
+#ifndef _WIN32
+        struct termios t;
+        tcgetattr(STDIN_FILENO, &t);
+        t.c_lflag |= (ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#endif
+    }
+
+    char get_char() {
+#ifdef _WIN32
+        if (_kbhit()) {
+            return _getch();
+        }
+        return 0;
+#else
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
+
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 100000;  // 100ms timeout
+
+        if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0) {
+            char c;
+            read(STDIN_FILENO, &c, 1);
+            return c;
+        }
+        return 0;
+#endif
+    }
+
+    void get_terminal_size() {
+#ifdef _WIN32
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+        term_width_ = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        term_height_ = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+#else
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        term_width_ = w.ws_col;
+        term_height_ = w.ws_row;
+#endif
+    }
+};
+
+} // namespace dashboard
+} // namespace security
+} // namespace rael
