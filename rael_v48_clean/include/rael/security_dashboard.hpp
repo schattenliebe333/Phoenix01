@@ -17,6 +17,7 @@
 //   [5] Bedrohungen  - Alert-Log mit Details
 //   [6] RST Status   - Gravitravitation, Vollenstrahlen, Defense Power
 //   [7] Einstellungen
+//   [8] SI Module     - Semantische Intelligenz / Programmierbarkeit
 //
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -39,6 +40,7 @@
 #include "rael/live_system_monitor.hpp"
 #include "rael/rst_deep_scanner.hpp"
 #include "rael/threat_interpreter.hpp"
+#include "rael/module_manager.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -120,7 +122,8 @@ enum class View {
     NETWORK = 4,
     ALERTS = 5,
     RST_STATUS = 6,
-    SETTINGS = 7
+    SETTINGS = 7,
+    SI_MODULES = 8
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -145,6 +148,7 @@ private:
     live_system::LiveSystemMonitor process_monitor_;
     deep::RSTOmegaDeepScanner deep_scanner_;
     interpret::ThreatInterpreter interpreter_;
+    ModuleManager module_manager_;  // SI Programmierbarkeit
 
     // State
     std::atomic<bool> running_;
@@ -287,6 +291,9 @@ public:
                 case View::SETTINGS:
                     render_settings();
                     break;
+                case View::SI_MODULES:
+                    render_si_modules();
+                    break;
             }
 
             render_footer();
@@ -347,8 +354,9 @@ public:
         render_nav_item("5", "Alerts", current_view_ == View::ALERTS);
         render_nav_item("6", "RST", current_view_ == View::RST_STATUS);
         render_nav_item("7", "Settings", current_view_ == View::SETTINGS);
+        render_nav_item("8", "SI", current_view_ == View::SI_MODULES);
 
-        std::cout << std::string(15, ' ') << "║\n";
+        std::cout << std::string(4, ' ') << "║\n";
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
     }
 
@@ -719,12 +727,118 @@ public:
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // SI MODULES VIEW (Semantische Intelligenz / Programmierbarkeit)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void render_si_modules() {
+        std::cout << "║                           " << color::BOLD << "SI MODULE - SEMANTISCHE INTELLIGENZ" << color::RESET << "                                               ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Aktives semantisches Modul
+        std::string active_semantic = module_manager_.active_semantic_name();
+        std::cout << "║ " << color::CYAN << "AKTIVES SEMANTIK-MODUL" << color::RESET << ": ";
+        if (active_semantic.empty()) {
+            std::cout << color::DIM << "(keines)" << color::RESET << std::string(77, ' ') << "║\n";
+        } else {
+            std::cout << color::GREEN << active_semantic << color::RESET << std::string(85 - active_semantic.length(), ' ') << "║\n";
+        }
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Module Liste Header
+        std::cout << "║ " << color::CYAN << "GELADENE MODULE" << color::RESET << "                                                                                                  ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Header
+        std::cout << "║ " << color::BOLD;
+        std::cout << std::setw(20) << std::left << "NAME" << " │ ";
+        std::cout << std::setw(10) << "VERSION" << " │ ";
+        std::cout << std::setw(12) << "TYP" << " │ ";
+        std::cout << std::setw(10) << "STATUS" << " │ ";
+        std::cout << std::setw(40) << "PFAD";
+        std::cout << color::RESET << "   ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Module auflisten
+        auto module_names = module_manager_.list_names();
+        int shown = 0;
+
+        for (const auto& name : module_names) {
+            if (shown >= 12) break;
+
+            const LoadedModule* mod = module_manager_.get(name);
+            if (!mod || !mod->api) continue;
+
+            const RaelModuleInfo& info = mod->api->info;
+
+            // Typ als String
+            std::string type_str;
+            switch (info.type) {
+                case RAEL_MOD_SEMANTIC: type_str = "SEMANTIC"; break;
+                case RAEL_MOD_MATH:     type_str = "MATH"; break;
+                case RAEL_MOD_IO:       type_str = "IO"; break;
+                case RAEL_MOD_NETWORK:  type_str = "NETWORK"; break;
+                case RAEL_MOD_SECURITY: type_str = "SECURITY"; break;
+                default:                type_str = "UNKNOWN"; break;
+            }
+
+            // Status Farbe
+            std::string status_color = mod->active ? color::GREEN : color::DIM;
+            std::string status_str = mod->active ? "AKTIV" : "INAKTIV";
+
+            // Pfad kürzen
+            std::string path = mod->path;
+            if (path.length() > 38) {
+                path = "..." + path.substr(path.length() - 35);
+            }
+
+            std::cout << "║ ";
+            std::cout << std::setw(20) << std::left << name.substr(0, 20) << " │ ";
+            std::cout << std::setw(10) << (info.version ? info.version : "-") << " │ ";
+            std::cout << std::setw(12) << type_str << " │ ";
+            std::cout << status_color << std::setw(10) << status_str << color::RESET << " │ ";
+            std::cout << std::setw(40) << path;
+            std::cout << "   ║\n";
+
+            shown++;
+        }
+
+        if (module_names.empty()) {
+            std::cout << "║ " << color::DIM << "Keine Module geladen. Lade Module mit [L]oad."
+                      << color::RESET << std::string(66, ' ') << "║\n";
+        }
+
+        // Padding
+        for (int i = shown; i < 12; ++i) {
+            std::cout << "║" << std::string(116, ' ') << "║\n";
+        }
+
+        // Funktionen
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::CYAN << "SI FUNKTIONEN" << color::RESET << "                                                                                                     ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║   • Semantische Text-Transformation (INTENTION{...})                                                                 ║\n";
+        std::cout << "║   • Mathematische Formeln (RST-Konstanten, Quint-Werte)                                                              ║\n";
+        std::cout << "║   • Hot-Swap für Live-Modul-Austausch                                                                                ║\n";
+        std::cout << "║   • Ethics-Layer für sichere Ausführung                                                                              ║\n";
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+
+        // Extra Formeln
+        auto formulas = module_manager_.get_extra_formulas();
+        std::cout << "║ " << color::CYAN << "VERFÜGBARE FORMELN" << color::RESET << " (aus geladenen Modulen): " << formulas.size() << std::string(53, ' ') << "║\n";
+
+        // Aktionen
+        std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
+        std::cout << "║ " << color::DIM << "[L] Modul laden │ [A] Aktivieren │ [D] Deaktivieren │ [U] Entladen │ [H] Hot-Swap │ [T] Text transformieren"
+                  << color::RESET << " ║\n";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // FOOTER
     // ═══════════════════════════════════════════════════════════════════════
 
     void render_footer() {
         std::cout << "╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣\n";
-        std::cout << "║ " << color::DIM << "[1-7] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
+        std::cout << "║ " << color::DIM << "[1-8] Navigation │ [Q] Beenden │ [R] Refresh │ [H] Hilfe"
                   << color::RESET << std::string(51, ' ') << "║\n";
         std::cout << "╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝\n";
     }
@@ -746,6 +860,7 @@ public:
                 case '5': current_view_ = View::ALERTS; break;
                 case '6': current_view_ = View::RST_STATUS; break;
                 case '7': current_view_ = View::SETTINGS; break;
+                case '8': current_view_ = View::SI_MODULES; break;
 
                 // Quit
                 case 'q':
@@ -773,6 +888,49 @@ public:
                     if (current_view_ == View::FILES) {
                         // Full Scan
                         start_full_scan();
+                    }
+                    break;
+
+                // SI Module Aktionen
+                case 'l':
+                case 'L':
+                    if (current_view_ == View::SI_MODULES) {
+                        load_si_module_interactive();
+                    }
+                    break;
+
+                case 'a':
+                case 'A':
+                    if (current_view_ == View::SI_MODULES) {
+                        activate_si_module_interactive();
+                    }
+                    break;
+
+                case 'd':
+                case 'D':
+                    if (current_view_ == View::SI_MODULES) {
+                        deactivate_si_module_interactive();
+                    }
+                    break;
+
+                case 'u':
+                case 'U':
+                    if (current_view_ == View::SI_MODULES) {
+                        unload_si_module_interactive();
+                    }
+                    break;
+
+                case 'h':
+                case 'H':
+                    if (current_view_ == View::SI_MODULES) {
+                        hotswap_si_module_interactive();
+                    }
+                    break;
+
+                case 't':
+                case 'T':
+                    if (current_view_ == View::SI_MODULES) {
+                        transform_text_interactive();
                     }
                     break;
             }
@@ -902,6 +1060,133 @@ private:
         }).detach();
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // SI MODULE FUNKTIONEN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void load_si_module_interactive() {
+        // Standard-Pfade für Module
+        std::vector<std::string> module_paths = {
+            "bin/modules/libsem_quint.so",
+            "bin/modules/libmath_pack.so"
+        };
+#ifdef _WIN32
+        module_paths = {
+            "bin\\modules\\sem_quint.dll",
+            "bin\\modules\\math_pack.dll"
+        };
+#endif
+        // Versuche alle Standard-Module zu laden
+        for (const auto& path : module_paths) {
+            std::string err;
+            if (module_manager_.load(path, err)) {
+                add_alert(Alert::INFO, "SI", "Modul geladen: " + path, "");
+            }
+        }
+    }
+
+    void activate_si_module_interactive() {
+        auto names = module_manager_.list_names();
+        for (const auto& name : names) {
+            const LoadedModule* mod = module_manager_.get(name);
+            if (mod && !mod->active) {
+                std::string err;
+                if (module_manager_.activate(name, err)) {
+                    add_alert(Alert::INFO, "SI", "Modul aktiviert: " + name, "");
+                } else {
+                    add_alert(Alert::WARNING, "SI", "Aktivierung fehlgeschlagen: " + name, err);
+                }
+            }
+        }
+    }
+
+    void deactivate_si_module_interactive() {
+        auto names = module_manager_.list_names();
+        for (const auto& name : names) {
+            const LoadedModule* mod = module_manager_.get(name);
+            if (mod && mod->active) {
+                std::string err;
+                if (module_manager_.deactivate(name, err)) {
+                    add_alert(Alert::INFO, "SI", "Modul deaktiviert: " + name, "");
+                }
+            }
+        }
+    }
+
+    void unload_si_module_interactive() {
+        auto names = module_manager_.list_names();
+        for (const auto& name : names) {
+            std::string err;
+            if (module_manager_.unload(name, err)) {
+                add_alert(Alert::INFO, "SI", "Modul entladen: " + name, "");
+            }
+        }
+    }
+
+    void hotswap_si_module_interactive() {
+        auto names = module_manager_.list_names();
+        for (const auto& name : names) {
+            const LoadedModule* mod = module_manager_.get(name);
+            if (mod && mod->api && mod->api->info.type == RAEL_MOD_SEMANTIC) {
+                std::string err;
+                if (module_manager_.hotswap_semantic(name, err)) {
+                    add_alert(Alert::INFO, "SI", "Hot-Swap zu: " + name, "Semantisches Modul gewechselt");
+                } else {
+                    add_alert(Alert::WARNING, "SI", "Hot-Swap fehlgeschlagen", err);
+                }
+                break;  // Nur eines swappen
+            }
+        }
+    }
+
+    void transform_text_interactive() {
+        // Demo-Transformation
+        std::string test_input = "RAEL Security System aktiviert";
+        std::string result = module_manager_.process_text_chain(test_input);
+
+        add_alert(Alert::INFO, "SI", "Text-Transformation", "Input: " + test_input);
+        add_alert(Alert::INFO, "SI", "Ergebnis", result);
+    }
+
+    // Öffentliche API für SI-Programmierung
+public:
+    // Text durch alle aktiven semantischen Module verarbeiten
+    std::string si_process_text(const std::string& input) {
+        return module_manager_.process_text_chain(input);
+    }
+
+    // Modul laden (returns success)
+    bool si_load_module(const std::string& path) {
+        std::string err;
+        bool ok = module_manager_.load(path, err);
+        if (!ok) {
+            add_alert(Alert::WARNING, "SI", "Laden fehlgeschlagen: " + path, err);
+        }
+        return ok;
+    }
+
+    // Modul aktivieren
+    bool si_activate_module(const std::string& name) {
+        std::string err;
+        return module_manager_.activate(name, err);
+    }
+
+    // Alle mathematischen Formeln aus Modulen holen
+    std::vector<std::string> si_get_formulas() {
+        return module_manager_.get_extra_formulas();
+    }
+
+    // Aktives semantisches Modul
+    std::string si_get_active_semantic() {
+        return module_manager_.active_semantic_name();
+    }
+
+    // ModuleManager direkt zugänglich für erweiterte Programmierung
+    ModuleManager& si_module_manager() {
+        return module_manager_;
+    }
+
+private:
     void clear_screen() {
 #ifdef _WIN32
         system("cls");
