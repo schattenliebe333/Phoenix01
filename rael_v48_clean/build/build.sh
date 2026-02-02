@@ -7,7 +7,7 @@ mkdir -p "$OUT" "$MODOUT"
 
 CXX="${CXX:-g++}"
 CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include"
-LDFLAGS=""
+LDFLAGS="-lssl -lcrypto"
 
 SOURCES=(
   "$ROOT/src/core/util.cpp"
