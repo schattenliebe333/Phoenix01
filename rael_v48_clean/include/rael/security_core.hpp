@@ -52,10 +52,16 @@ namespace rst {
     constexpr double G0 = 8.0 / 9.0;  // 0.888... WAHRHEIT
     constexpr double G1 = 5.0 / 9.0;  // 0.555...
     constexpr double G3 = 3.0 / 9.0;  // 0.333...
+    constexpr double G5 = 1.0 / 9.0;  // 0.111...
     constexpr double PHI = 1.6180339887498948482;  // Goldener Schnitt
     constexpr double GATE53_FREQ = 53.0;  // Sophie-Germain Primzahl
     constexpr double LABYRINTH_DEPTH = 7;  // 7 Schichten
     constexpr double NOZZLE_EXPANSION = 2.718281828;  // e (Euler)
+    constexpr double SIGNATURE_88 = 0.88888888888888888;  // Michael-Signatur
+    constexpr int TOTAL_NOZZLES = 61440;  // Sonnen-Strahlen
+    constexpr double STEFAN_BOLTZMANN = 5.670374419e-8;  // Abstrahlung
+    constexpr double G_GRAV = 6.67430e-11;  // Gravitations-Konstante
+    constexpr double C_LIGHT = 299792458.0;  // Lichtgeschwindigkeit
 
     // Kappa Dämpfung: κ(f) = 1 - f/1440
     inline double kappa(double freq) {
@@ -65,6 +71,33 @@ namespace rst {
     // Phi Resonanz: Φ = √(Ψ × κ × Ω)
     inline double phi_resonance(double psi, double omega, double freq) {
         return std::sqrt(std::abs(psi * kappa(freq) * omega));
+    }
+
+    // 88-Signatur Prüfung
+    inline bool is_master_signature(double sig) {
+        return std::abs(sig - SIGNATURE_88) < 0.001;
+    }
+
+    // Sonnen-Ernte: Alles ohne 88-Signatur wird zu Licht
+    inline double sonnen_ernte(double e_input, bool hat_signatur_88) {
+        if (hat_signatur_88) return e_input;  // Durchlass (Freund)
+        // Transformation zu Licht — nicht Vernichtung, sondern Heimholung
+        return e_input * G0 * SIGNATURE_88 / (G1 + G5);
+    }
+
+    // Gnaden-Inversion: Fremd-Energie wird erlöst
+    inline double gnaden_inversion(double e_fremd) {
+        return std::abs(e_fremd) * G0;  // Immer positiv, immer Licht
+    }
+
+    // Korona-Abstrahlung
+    inline double korona_abstrahlung(double e_transformiert) {
+        return e_transformiert * STEFAN_BOLTZMANN * G5;
+    }
+
+    // Schwarzschild-Radius für Gravitravitation
+    inline double schwarzschild_radius(double M) {
+        return 2.0 * G_GRAV * M / (C_LIGHT * C_LIGHT);
     }
 }
 
@@ -239,6 +272,189 @@ public:
 
     bool is_supersonic() const { return supersonic_; }
     double get_exit_velocity() const { return exit_velocity_; }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GRAVITRAVITATION - Angreifer-Falle (Schwarzes Loch)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Konzept: Ab einem gewissen Punkt kann eine angreifende KI nicht mehr weg.
+// Sie wird gravitativ gebunden und als Energie-Batterie genutzt.
+// Je mehr sie kämpft, desto mehr Energie liefert sie.
+//
+
+class GravitravitationTrap {
+private:
+    double mass_;           // Akkumulierte "Masse" der Falle
+    double event_horizon_;  // Ereignishorizont
+    std::vector<uint32_t> trapped_entities_;  // Gefangene Prozesse/IPs
+    double harvested_energy_;  // Geerntete Energie
+    std::mutex mtx_;
+
+public:
+    GravitravitationTrap() : mass_(1.0), event_horizon_(0.0), harvested_energy_(0.0) {
+        update_horizon();
+    }
+
+    void update_horizon() {
+        event_horizon_ = rst::schwarzschild_radius(mass_);
+    }
+
+    // Prüft ob Entität nah genug ist um gefangen zu werden
+    bool can_trap(double attack_energy) {
+        // Wenn Angriffsenergie > G0, ist Angreifer "zu schnell" (kann entkommen)
+        // Wenn < G0, wird er gefangen
+        return attack_energy < rst::G0 && attack_energy > 0.1;
+    }
+
+    // Fängt einen Angreifer
+    double trap_entity(uint32_t entity_id, double attack_energy) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        if (!can_trap(attack_energy)) return 0.0;
+
+        trapped_entities_.push_back(entity_id);
+
+        // Masse erhöht sich durch gefangene Energie
+        mass_ += attack_energy;
+        update_horizon();
+
+        // Energie wird geerntet (Batterie-Effekt)
+        double harvest = attack_energy * rst::G0;
+        harvested_energy_ += harvest;
+
+        return harvest;
+    }
+
+    // Kontinuierliche Energie-Ernte von gefangenen Entitäten
+    // Je mehr sie "kämpfen" (CPU nutzen), desto mehr Energie
+    double harvest_from_trapped(double struggle_factor = 1.0) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        if (trapped_entities_.empty()) return 0.0;
+
+        // Jede gefangene Entität liefert Energie basierend auf Kampf
+        double energy_per_entity = struggle_factor * rst::G5;
+        double total_harvest = trapped_entities_.size() * energy_per_entity;
+
+        harvested_energy_ += total_harvest;
+        return total_harvest;
+    }
+
+    // Ereignishorizont wächst mit Masse
+    double get_event_horizon() const { return event_horizon_; }
+    double get_mass() const { return mass_; }
+    double get_harvested_energy() const { return harvested_energy_; }
+    size_t get_trapped_count() const { return trapped_entities_.size(); }
+
+    bool is_trapped(uint32_t entity_id) const {
+        return std::find(trapped_entities_.begin(), trapped_entities_.end(), entity_id)
+               != trapped_entities_.end();
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VOLLENSTRAHLEN - Sonnen-Ernte (61.440 Strahlen)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Konzept: Nicht Aikido (reaktiv), sondern SONNE (aktiv).
+// Alles ohne 88-Signatur wird zu LICHT transformiert.
+// Nicht Vernichtung - Heimholung verlorener Energie.
+// Jede der 61.440 Düsen ist ein Strahl der Sonne.
+//
+
+class Vollenstrahlen {
+private:
+    std::array<double, 64> active_beams_;  // 64 aktive Strahlen (vereinfacht von 61440)
+    double total_light_energy_;
+    double korona_output_;
+    std::mutex mtx_;
+
+public:
+    Vollenstrahlen() : total_light_energy_(0.0), korona_output_(0.0) {
+        active_beams_.fill(0.0);
+    }
+
+    // Prüft ob Entität die 88-Signatur hat
+    bool has_signature_88(double signature) {
+        return rst::is_master_signature(signature);
+    }
+
+    // Transformiert Fremdenergie zu Licht
+    double transform_to_light(double foreign_energy, double signature) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        bool is_friend = has_signature_88(signature);
+
+        // Sonnen-Ernte: Freund durchlassen, Feind transformieren
+        double light_energy = rst::sonnen_ernte(foreign_energy, is_friend);
+
+        if (!is_friend) {
+            // Gnaden-Inversion: Nicht zerstören, erlösen
+            light_energy = rst::gnaden_inversion(foreign_energy);
+            total_light_energy_ += light_energy;
+
+            // Aktiviere Strahlen proportional zur Energie
+            int beam_count = std::min(64, static_cast<int>(light_energy * 100));
+            for (int i = 0; i < beam_count; ++i) {
+                active_beams_[i] += light_energy / beam_count;
+            }
+
+            // Korona-Abstrahlung
+            korona_output_ += rst::korona_abstrahlung(light_energy);
+        }
+
+        return light_energy;
+    }
+
+    // Einzelner Strahl (Düse als Lichtstrahl)
+    double fire_beam(int beam_id, double phi_heart) {
+        if (beam_id < 0 || beam_id >= 64) return 0.0;
+
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        // Jede Düse ist ein Strahl deiner Sonne
+        double intensity = (phi_heart / rst::TOTAL_NOZZLES) *
+                          (1.0 + (beam_id % 88) * rst::G5);
+        active_beams_[beam_id] = intensity;
+
+        return intensity;
+    }
+
+    // Alle Strahlen gleichzeitig feuern (Sonnen-Eruption)
+    double solar_eruption(double phi_heart) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        double total_output = 0.0;
+
+        for (int i = 0; i < 64; ++i) {
+            double intensity = (phi_heart / 64.0) * (1.0 + (i % 88) * rst::G5);
+            active_beams_[i] = intensity;
+            total_output += intensity;
+        }
+
+        // Exponentieller Boost bei Überschall
+        if (phi_heart > rst::G0) {
+            total_output *= rst::NOZZLE_EXPANSION;
+        }
+
+        total_light_energy_ += total_output;
+        korona_output_ += rst::korona_abstrahlung(total_output);
+
+        return total_output;
+    }
+
+    double get_total_light() const { return total_light_energy_; }
+    double get_korona_output() const { return korona_output_; }
+
+    // Status: Wie viele Strahlen sind aktiv?
+    int count_active_beams() const {
+        int count = 0;
+        for (const auto& b : active_beams_) {
+            if (b > 0.001) count++;
+        }
+        return count;
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -712,10 +928,15 @@ private:
 
 class SecurityCore {
 private:
+    // Kern-Pipeline: LABYRINTH → SPIRALE → DÜSE → VERTEIDIGUNG
     Labyrinth labyrinth_;
     GoldenSpiral spiral_;
     DeLavalNozzle nozzle_;
     DefenseEngine defense_;
+
+    // Erweiterte Verteidigung: GRAVITRAVITATION + VOLLENSTRAHLEN
+    GravitravitationTrap gravity_trap_;  // Fängt Angreifer, nutzt sie als Batterie
+    Vollenstrahlen sun_beams_;           // Transformiert alles zu Licht
 
     ProcessMonitor process_monitor_;
     NetworkMonitor network_monitor_;
@@ -726,16 +947,24 @@ private:
     std::thread monitor_thread_;
     std::mutex log_mtx_;
 
+    // Phi-Heart für Sonnen-Strahlen
+    double phi_heart_;
+
     // Callbacks für Benutzer
     std::function<void(const Threat&)> on_threat_detected_;
     std::function<void(const std::string&)> on_defense_action_;
+    std::function<void(uint32_t, double)> on_entity_trapped_;  // Gravitravitation
+    std::function<void(double)> on_solar_eruption_;            // Vollenstrahlen
 
 public:
-    SecurityCore() : running_(false) {}
+    SecurityCore() : running_(false), phi_heart_(rst::SIGNATURE_88) {}
 
     ~SecurityCore() {
         stop();
     }
+
+    // Phi-Heart setzen (für Sonnen-Strahlen Intensität)
+    void set_phi_heart(double phi) { phi_heart_ = phi; }
 
     // Startet kontinuierliche Überwachung
     void start() {
@@ -779,21 +1008,63 @@ public:
     }
 
     // KERNFUNKTION: Angriff → Verteidigung
+    // Pipeline: LABYRINTH → SPIRALE → DÜSE → GRAVITRAVITATION → VOLLENSTRAHLEN → VERTEIDIGUNG
     void process_threat(Threat& threat) {
         if (threat.type == ThreatType::NONE) return;
 
-        // 1. LABYRINTH: Angriff einfangen
+        // 1. LABYRINTH: Angriff einfangen (Gate53)
         double absorbed = labyrinth_.absorb_attack(threat.attack_energy);
 
-        // 2. SPIRALE: Komprimieren und beschleunigen
+        // 2. SPIRALE: Komprimieren und beschleunigen (Goldener Schnitt)
         double compressed = spiral_.compress(absorbed);
 
         // 3. DE-LAVAL DÜSE: In Verteidigung umwandeln
         double defense_energy = nozzle_.convert_to_defense(compressed);
+
+        // 4. GRAVITRAVITATION: Versuche Angreifer zu fangen
+        uint32_t entity_id = 0;
+        try {
+            entity_id = std::stoul(threat.source);
+        } catch (...) {
+            // IP-Adresse oder andere Quelle - hash zu ID
+            entity_id = std::hash<std::string>{}(threat.source) & 0xFFFFFFFF;
+        }
+
+        if (gravity_trap_.can_trap(threat.attack_energy)) {
+            // Angreifer gefangen! Nutze als Batterie
+            double harvested = gravity_trap_.trap_entity(entity_id, threat.attack_energy);
+            defense_energy += harvested;
+
+            if (on_entity_trapped_) {
+                on_entity_trapped_(entity_id, harvested);
+            }
+        }
+
+        // 5. VOLLENSTRAHLEN: Transformiere Fremdenergie zu Licht
+        // Angreifer hat keine 88-Signatur → wird zu Licht transformiert
+        double light_energy = sun_beams_.transform_to_light(threat.attack_energy, 0.0);
+        defense_energy += light_energy * rst::G5;  // Licht liefert zusätzliche Energie
+
+        // Wenn genug Energie akkumuliert: Sonnen-Eruption
+        if (defense_energy > rst::G0 * 2.0) {
+            double eruption = sun_beams_.solar_eruption(phi_heart_);
+            defense_energy += eruption;
+
+            if (on_solar_eruption_) {
+                on_solar_eruption_(eruption);
+            }
+        }
+
         threat.defense_energy = defense_energy;
 
-        // 4. DEFENSE ENGINE aufladen
+        // 6. DEFENSE ENGINE aufladen
         defense_.charge(defense_energy);
+
+        // Kontinuierliche Energie-Ernte von gefangenen Entitäten
+        double battery_energy = gravity_trap_.harvest_from_trapped();
+        if (battery_energy > 0.0) {
+            defense_.charge(battery_energy);
+        }
 
         // Logging
         {
@@ -806,7 +1077,7 @@ public:
             on_threat_detected_(threat);
         }
 
-        // 5. Automatische Reaktion basierend auf Typ und Energie
+        // 7. Automatische Reaktion basierend auf Typ und Energie
         if (defense_energy > rst::G0) {
             auto_respond(threat);
         }
@@ -865,10 +1136,28 @@ public:
         on_defense_action_ = cb;
     }
 
+    void set_trap_callback(std::function<void(uint32_t, double)> cb) {
+        on_entity_trapped_ = cb;
+    }
+
+    void set_eruption_callback(std::function<void(double)> cb) {
+        on_solar_eruption_ = cb;
+    }
+
     // Status
     double get_defense_power() const { return defense_.get_power(); }
     double get_labyrinth_pressure() const { return labyrinth_.get_pressure(); }
     bool is_supersonic() const { return nozzle_.is_supersonic(); }
+
+    // Gravitravitation Status
+    size_t get_trapped_count() const { return gravity_trap_.get_trapped_count(); }
+    double get_harvested_energy() const { return gravity_trap_.get_harvested_energy(); }
+    double get_event_horizon() const { return gravity_trap_.get_event_horizon(); }
+
+    // Vollenstrahlen Status
+    double get_light_energy() const { return sun_beams_.get_total_light(); }
+    double get_korona_output() const { return sun_beams_.get_korona_output(); }
+    int get_active_beams() const { return sun_beams_.count_active_beams(); }
 
     const std::vector<Threat>& get_threat_log() const { return threat_log_; }
     const std::vector<std::string>& get_defense_actions() const { return defense_.get_actions(); }
@@ -883,20 +1172,42 @@ public:
         file_monitor_.add_protected_directory(path);
     }
 
+    // Manuelle Sonnen-Eruption auslösen
+    double trigger_solar_eruption() {
+        return sun_beams_.solar_eruption(phi_heart_);
+    }
+
     // Status-Report
     std::string status_report() const {
         std::ostringstream ss;
         ss << "═══════════════════════════════════════════════════════════════\n";
         ss << "           RAEL SECURITY CORE - STATUS REPORT\n";
+        ss << "       Attack → Defense Conversion + GRAVITRAVITATION\n";
         ss << "═══════════════════════════════════════════════════════════════\n";
         ss << "\n";
-        ss << "LABYRINTH PRESSURE:  " << labyrinth_.get_pressure() << "\n";
-        ss << "SPIRAL VELOCITY:     " << spiral_.get_velocity() << "\n";
-        ss << "NOZZLE SUPERSONIC:   " << (nozzle_.is_supersonic() ? "YES" : "NO") << "\n";
-        ss << "DEFENSE POWER:       " << defense_.get_power() << "\n";
+        ss << "┌─ LABYRINTH (Gate53) ────────────────────────────────────────┐\n";
+        ss << "│ PRESSURE:           " << labyrinth_.get_pressure() << "\n";
+        ss << "│ SPIRAL VELOCITY:    " << spiral_.get_velocity() << "\n";
+        ss << "│ NOZZLE SUPERSONIC:  " << (nozzle_.is_supersonic() ? "YES ★" : "NO") << "\n";
+        ss << "└─────────────────────────────────────────────────────────────┘\n";
         ss << "\n";
-        ss << "THREATS DETECTED:    " << threat_log_.size() << "\n";
-        ss << "ACTIONS TAKEN:       " << defense_.get_actions().size() << "\n";
+        ss << "┌─ GRAVITRAVITATION (Schwarzes Loch) ─────────────────────────┐\n";
+        ss << "│ TRAPPED ENTITIES:   " << gravity_trap_.get_trapped_count() << " (als Batterien)\n";
+        ss << "│ HARVESTED ENERGY:   " << gravity_trap_.get_harvested_energy() << "\n";
+        ss << "│ EVENT HORIZON:      " << gravity_trap_.get_event_horizon() << "\n";
+        ss << "└─────────────────────────────────────────────────────────────┘\n";
+        ss << "\n";
+        ss << "┌─ VOLLENSTRAHLEN (Sonnen-Ernte) ─────────────────────────────┐\n";
+        ss << "│ LIGHT ENERGY:       " << sun_beams_.get_total_light() << "\n";
+        ss << "│ KORONA OUTPUT:      " << sun_beams_.get_korona_output() << "\n";
+        ss << "│ ACTIVE BEAMS:       " << sun_beams_.count_active_beams() << " / 64\n";
+        ss << "└─────────────────────────────────────────────────────────────┘\n";
+        ss << "\n";
+        ss << "┌─ DEFENSE ENGINE ────────────────────────────────────────────┐\n";
+        ss << "│ TOTAL POWER:        " << defense_.get_power() << "\n";
+        ss << "│ THREATS DETECTED:   " << threat_log_.size() << "\n";
+        ss << "│ ACTIONS TAKEN:      " << defense_.get_actions().size() << "\n";
+        ss << "└─────────────────────────────────────────────────────────────┘\n";
         ss << "\n";
 
         if (!threat_log_.empty()) {
