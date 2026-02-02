@@ -81,6 +81,14 @@ if [[ -f "$ROOT/src/v50/rael_v50_main.cpp" ]]; then
     echo "[build] V50 Ultimate compiled successfully"
 fi
 
+# Security Daemon (Attack → Defense Conversion)
+echo "[build] Security Daemon -> $OUT/rael_security"
+mkdir -p "$ROOT/src/security"
+if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_security_daemon.cpp" -o "$OUT/rael_security" -pthread
+    echo "[build] Security Daemon compiled successfully"
+fi
+
 # Windows 11 EXE (Cross-Compilation)
 WIN_CXX="${WIN_CXX:-x86_64-w64-mingw32-g++}"
 if command -v "$WIN_CXX" &> /dev/null; then
@@ -91,6 +99,15 @@ if command -v "$WIN_CXX" &> /dev/null; then
             "$ROOT/src/windows/rael_v50_windows.cpp" \
             -o "$OUT/windows/rael_v50.exe"
         echo "[build] Windows EXE compiled successfully"
+    fi
+
+    # Windows Security EXE
+    echo "[build] Windows Security EXE -> $OUT/windows/rael_security.exe"
+    if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_security_daemon.cpp" \
+            -o "$OUT/windows/rael_security.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Security EXE compiled successfully"
     fi
 else
     echo "[build] mingw-w64 not found, skipping Windows build"
