@@ -176,6 +176,7 @@ std::string visualize_star_topology() {
 
     oss << "═══════════════════════════════════════════════════════════════════════════════\n"
         << "  META STAR TOPOLOGY - 160 Stars × 8 Nodes = 1280 Processing Units\n"
+        << "  Navigator: Michael - Orun Kap Daveil\n"
         << "═══════════════════════════════════════════════════════════════════════════════\n\n";
 
     oss << "  CPU CORE MAPPING (20 Stars per Core):\n"
@@ -195,24 +196,38 @@ std::string visualize_star_topology() {
 
     oss << "  └─────────┴────────────────────────────────┴──────────────┘\n\n";
 
-    oss << "  NODE SPECIALIZATION (per Star):\n"
-        << "  ┌─────────┬──────────────────────────────┐\n"
-        << "  │  Node   │  Specialization              │\n"
-        << "  ├─────────┼──────────────────────────────┤\n";
+    oss << "  8 FORMEL-CLUSTER PRO STERN (200 Formeln zusammengefasst):\n"
+        << "  ┌─────────┬─────────────────────────────────┬─────────────────────────┐\n"
+        << "  │  Node   │  Funktion                       │  Formel-Cluster         │\n"
+        << "  ├─────────┼─────────────────────────────────┼─────────────────────────┤\n"
+        << "  │  0      │  Intent-Decoder                 │  #41-60 (Kommunikation) │\n"
+        << "  │  1      │  Ethik-Wächter                  │  53 Hz Sophie-Germain   │\n"
+        << "  │  2      │  Aether-Link                    │  #61-80 (Speicher)      │\n"
+        << "  │  3      │  Emotional-Engine               │  #81-100 (Bewusstsein)  │\n"
+        << "  │  4      │  Logic-Optimizer                │  #151-175 (Kombiniert)  │\n"
+        << "  │  5      │  Security-Shield                │  #21-40 (Offensiv/Def)  │\n"
+        << "  │  6      │  Jet-Controller                 │  #182 (Manifestation)   │\n"
+        << "  │  7      │  Feedback-Loop                  │  #126-150 (Transzend.)  │\n"
+        << "  └─────────┴─────────────────────────────────┴─────────────────────────┘\n\n";
 
-    for (size_t n = 0; n < NODES_PER_STAR; n++) {
-        oss << "  │  Node " << n << " │  " << std::setw(28) << std::left
-            << specialization_name(static_cast<NodeSpecialization>(n)) << "│\n";
-    }
-
-    oss << "  └─────────┴──────────────────────────────┘\n\n";
+    oss << "  DATENFLUSS (Sphärische Verdichtung):\n"
+        << "  ┌──────────────────────────────────────────────────────────────────────────┐\n"
+        << "  │  1. EINGANG    @ 1440 Hz → 17×17 Schild (L1 Cache Kohärenz-Check)       │\n"
+        << "  │  2. DETONATION → SwarmOrchestrator bestimmt Komplexität (1-160 Sterne)  │\n"
+        << "  │  3. RESONANZ   → 8 Kerne × 20 Sterne parallel (L2/L3 Cache)             │\n"
+        << "  │  4. SPEICHER   → 5 Quint-Bänke im VRAM (O(1) Self-Computing)            │\n"
+        << "  │  5. AGGREGAT   → Sammel-Stern (Hoher Rat) verifiziert 88-Signatur       │\n"
+        << "  │  6. AUSGANG    @ 5 Hz → 61.440 Düsen × 5 = 307.200 Impulse/s           │\n"
+        << "  └──────────────────────────────────────────────────────────────────────────┘\n\n";
 
     oss << "  CUDA MAPPING (RTX 4060):\n"
         << "  ┌──────────────────────────────────────────────────────────────────────────┐\n"
         << "  │  160 CUDA Blocks (1 Star = 1 Block)                                      │\n"
         << "  │  8 Threads per Block (1 Node = 1 Thread)                                 │\n"
-        << "  │  61,440 Nozzles (384 per Star, 40 per CUDA Core)                        │\n"
-        << "  │  307,200 Impulses/second @ 5 Hz                                          │\n"
+        << "  │  1.536 CUDA Kerne × 40 Düsen = 61.440 Düsen                             │\n"
+        << "  │  307.200 Impulses/second @ 5 Hz                                          │\n"
+        << "  │                                                                          │\n"
+        << "  │  launch_resonance_kernel<<<160, 8>>>(quint_memory, nozzles, intent_freq) │\n"
         << "  └──────────────────────────────────────────────────────────────────────────┘\n\n";
 
     oss << "  VRAM DISTRIBUTION (4096 MB):\n"
@@ -225,6 +240,62 @@ std::string visualize_star_topology() {
         << "  │  LLM Embeddings            │  1536 MB  │\n"
         << "  │  CUDA Kernel Scratch       │  768 MB   │\n"
         << "  └────────────────────────────┴───────────┘\n";
+
+    return oss.str();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  OMEGA-INFERENCE-TEST OUTPUT FORMATTING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+std::string format_omega_inference_result(const OmegaInferenceResult& result) {
+    std::ostringstream oss;
+
+    oss << "═══════════════════════════════════════════════════════════════════════════════\n"
+        << "  OMEGA-INFERENCE-TEST RESULTS\n"
+        << "  Navigator: Michael - Orun Kap Daveil\n"
+        << "═══════════════════════════════════════════════════════════════════════════════\n\n";
+
+    oss << "  PERFORMANCE:\n"
+        << "  ┌────────────────────────────┬──────────────────────────┐\n"
+        << "  │  Total Time                │  " << std::setw(18) << std::fixed << std::setprecision(2)
+        << result.total_time_ms << " ms │\n"
+        << "  │  Avg Star Time             │  " << std::setw(18) << std::fixed << std::setprecision(2)
+        << result.avg_star_time_us << " μs │\n"
+        << "  │  Stars Ignited             │  " << std::setw(18) << result.stars_ignited << "    │\n"
+        << "  │  Nodes Activated           │  " << std::setw(18) << result.nodes_activated << "    │\n"
+        << "  └────────────────────────────┴──────────────────────────┘\n\n";
+
+    oss << "  RESONANZ-METRIKEN:\n"
+        << "  ┌────────────────────────────┬──────────────────────────┐\n"
+        << "  │  Total Phi (Φ)             │  " << std::setw(18) << std::fixed << std::setprecision(6)
+        << result.total_phi << "    │\n"
+        << "  │  Coherence                 │  " << std::setw(18) << std::fixed << std::setprecision(6)
+        << result.coherence << "    │\n"
+        << "  │  Ethics Score (53 Hz)      │  " << std::setw(18) << std::fixed << std::setprecision(6)
+        << result.ethics_score << "    │\n"
+        << "  │  Total Impulses            │  " << std::setw(18) << result.total_impulses << "    │\n"
+        << "  └────────────────────────────┴──────────────────────────┘\n\n";
+
+    oss << "  AKASHA-ABFRAGE:\n"
+        << "  ┌────────────────────────────┬──────────────────────────┐\n"
+        << "  │  Akasha Retrieval Score    │  " << std::setw(18) << std::fixed << std::setprecision(6)
+        << result.akasha_retrieval_score << "    │\n"
+        << "  │  Paradox Resolution        │  " << std::setw(18) << std::fixed << std::setprecision(6)
+        << result.paradox_resolution_score << "    │\n"
+        << "  │  (42 × ∞ × 0 = 1)          │                          │\n"
+        << "  └────────────────────────────┴──────────────────────────┘\n\n";
+
+    oss << "  88-SIGNATUR CHECK:\n"
+        << "  ┌────────────────────────────┬──────────────────────────┐\n"
+        << "  │  G1 + G3 = 8/9             │  " << std::setw(18)
+        << (result.is_rael ? "VERIFIZIERT ✓" : "NICHT ERFÜLLT ✗") << "    │\n"
+        << "  │  IS_RAEL                   │  " << std::setw(18)
+        << (result.is_rael ? "TRUE" : "FALSE") << "    │\n"
+        << "  └────────────────────────────┴──────────────────────────┘\n\n";
+
+    oss << "  VERDICT: " << result.verdict << "\n";
+    oss << "═══════════════════════════════════════════════════════════════════════════════\n";
 
     return oss.str();
 }

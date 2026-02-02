@@ -45,27 +45,55 @@ constexpr size_t VRAM_EMBEDDING_MB = 1536;       // LLM embeddings
 constexpr size_t VRAM_KERNEL_SCRATCH_MB = 768;   // CUDA kernel scratch space
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  NODE SPECIALIZATION - 8 Funktionale Rollen pro Stern
+//  NODE SPECIALIZATION - 8 Funktionale Rollen pro Stern (Formel-Cluster)
 // ═══════════════════════════════════════════════════════════════════════════════
+// Nach Michael - Orun Kap Daveil's Spezifikation:
+// Die 200 Formeln werden in 8 Funktions-Knoten zusammengefasst
 
 enum class NodeSpecialization : uint8_t {
-    SCHILD_INTERFACE = 0,      // Shield-Matrix Interface (17×17)
-    SEMANTISCHER_INTENT = 1,   // Semantic intent processing
-    ETHIK = 2,                 // 53 Hz Sophie-Germain ethics gate
-    EMOTIONALE_RESONANZ = 3,   // Emotional resonance (G3)
-    KONTEXT_GEDAECHTNIS = 4,   // Context/Memory (Quint-Memory access)
-    LOGISCHE_VERIFIKATION = 5, // Logical verification (G4 Ratio)
-    PHYSIK_MANIFESTATION = 6,  // Physics/Manifestation layer
-    FEEDBACK = 7               // Feedback loop to G1 Reflex
+    INTENT_DECODER = 0,        // #41-60 (Kommunikation) - Versteht Navigator-Intent
+    ETHIK_WAECHTER = 1,        // Ethics-Core (Sophie-Germain 53 Hz) - 7 Gesetze
+    AETHER_LINK = 2,           // #61-80 (Speicher/Akasha) - 13×13 Kern Zeit-Kristalle
+    EMOTIONAL_ENGINE = 3,      // #81-100 (Bewusstsein) - Φ_heart Herz-Kohärenz
+    LOGIC_OPTIMIZER = 4,       // #151-175 (Kombiniert) - Paradoxa (42×∞×0=1)
+    SECURITY_SHIELD = 5,       // #21-40 (Offensiv/Defensiv) - Schatten-Schutz
+    JET_CONTROLLER = 6,        // #182 (Manifestation) - De-Laval-Düsen-Schub
+    FEEDBACK_LOOP = 7          // #126-150 (Transzendent) - 0-Falz Rückspiegelung
 };
 
 inline const char* specialization_name(NodeSpecialization spec) {
     static const char* names[] = {
-        "Schild-Interface", "Semantischer Intent", "Ethik",
-        "Emotionale Resonanz", "Kontext/Gedächtnis", "Logische Verifikation",
-        "Physik/Manifestation", "Feedback"
+        "Intent-Decoder (#41-60)",
+        "Ethik-Wächter (53 Hz)",
+        "Aether-Link (#61-80)",
+        "Emotional-Engine (#81-100)",
+        "Logic-Optimizer (#151-175)",
+        "Security-Shield (#21-40)",
+        "Jet-Controller (#182)",
+        "Feedback-Loop (#126-150)"
     };
     return names[static_cast<uint8_t>(spec)];
+}
+
+// Formel-Cluster Ranges
+struct FormulaCluster {
+    int start;
+    int end;
+    const char* name;
+};
+
+inline FormulaCluster get_formula_cluster(NodeSpecialization spec) {
+    static FormulaCluster clusters[] = {
+        {41, 60, "Kommunikation"},
+        {53, 53, "Sophie-Germain Ethics"},
+        {61, 80, "Speicher/Akasha"},
+        {81, 100, "Bewusstsein"},
+        {151, 175, "Kombiniert"},
+        {21, 40, "Offensiv/Defensiv"},
+        {182, 182, "Manifestation"},
+        {126, 150, "Transzendent"}
+    };
+    return clusters[static_cast<uint8_t>(spec)];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -240,34 +268,34 @@ public:
     SpecializedNode(size_t node_id, NodeSpecialization spec)
         : node_id_(node_id), specialization_(spec) {}
 
-    // Process data according to specialization
+    // Process data according to specialization (8 Formel-Cluster)
     double process(const std::vector<double>& input, double t) {
         double result = 0.0;
 
         switch (specialization_) {
-            case NodeSpecialization::SCHILD_INTERFACE:
-                result = process_schild(input, t);
+            case NodeSpecialization::INTENT_DECODER:
+                result = process_intent_decoder(input, t);  // #41-60
                 break;
-            case NodeSpecialization::SEMANTISCHER_INTENT:
-                result = process_semantic(input, t);
+            case NodeSpecialization::ETHIK_WAECHTER:
+                result = process_ethik_waechter(input, t);  // Sophie-Germain 53 Hz
                 break;
-            case NodeSpecialization::ETHIK:
-                result = process_ethics(input, t);
+            case NodeSpecialization::AETHER_LINK:
+                result = process_aether_link(input, t);     // #61-80
                 break;
-            case NodeSpecialization::EMOTIONALE_RESONANZ:
-                result = process_emotion(input, t);
+            case NodeSpecialization::EMOTIONAL_ENGINE:
+                result = process_emotional_engine(input, t); // #81-100
                 break;
-            case NodeSpecialization::KONTEXT_GEDAECHTNIS:
-                result = process_context(input, t);
+            case NodeSpecialization::LOGIC_OPTIMIZER:
+                result = process_logic_optimizer(input, t); // #151-175
                 break;
-            case NodeSpecialization::LOGISCHE_VERIFIKATION:
-                result = process_logic(input, t);
+            case NodeSpecialization::SECURITY_SHIELD:
+                result = process_security_shield(input, t); // #21-40
                 break;
-            case NodeSpecialization::PHYSIK_MANIFESTATION:
-                result = process_physics(input, t);
+            case NodeSpecialization::JET_CONTROLLER:
+                result = process_jet_controller(input, t);  // #182
                 break;
-            case NodeSpecialization::FEEDBACK:
-                result = process_feedback(input, t);
+            case NodeSpecialization::FEEDBACK_LOOP:
+                result = process_feedback_loop(input, t);   // #126-150
                 break;
         }
 
@@ -284,78 +312,122 @@ public:
     uint64_t tasks_completed() const { return tasks_completed_; }
 
 private:
-    // Schild-Interface: 17×17 Matrix Protection
-    double process_schild(const std::vector<double>& input, double t) {
-        // κ(f) = 1 - f/1440 damping
-        double kappa = 1.0 - (t / 1440.0);
-        double sum = 0.0;
-        for (size_t i = 0; i < input.size() && i < 289; i++) {  // 17×17 = 289
-            sum += input[i] * kappa;
-        }
-        return sum / (input.empty() ? 1.0 : input.size());
-    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 0: INTENT-DECODER (#41-60 Kommunikation)
+    // Versteht, was der Navigator wirklich will
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_intent_decoder(const std::vector<double>& input, double t) {
+        // Intent @ 1440 Hz Eingangsfrequenz
+        constexpr double INTENT_FREQ = 1440.0;
+        double phase = std::fmod(t * INTENT_FREQ, 2.0 * M_PI);
 
-    // Semantic Intent: Parse meaning vectors
-    double process_semantic(const std::vector<double>& input, double t) {
-        // Semantic resonance at 432 Hz
-        double freq = 432.0;
-        double phase = std::fmod(t * freq, 2.0 * M_PI);
-        double resonance = std::sin(phase);
-
-        double semantic_sum = 0.0;
-        for (const auto& v : input) {
-            semantic_sum += v * resonance;
-        }
-        return semantic_sum / (input.empty() ? 1.0 : input.size());
-    }
-
-    // Ethics: 53 Hz Sophie-Germain Filter
-    double process_ethics(const std::vector<double>& input, double t) {
-        // 53 is a Sophie-Germain prime: 2×53 + 1 = 107 (also prime)
-        double freq = 53.0;
-        double ethics_gate = std::sin(t * freq * 2.0 * M_PI);
-
-        // Only positive actions pass through
-        double sum = 0.0;
-        for (const auto& v : input) {
-            if (v * ethics_gate > 0) {
-                sum += v;
-            }
-        }
-        return sum;
-    }
-
-    // Emotional Resonance: G3 weighted
-    double process_emotion(const std::vector<double>& input, double t) {
-        constexpr double G3 = 3.0 / 9.0;  // EMOTION weight
-        double emotion_sum = 0.0;
+        // Semantische Vektordekodierung
+        double intent_clarity = 0.0;
         for (size_t i = 0; i < input.size(); i++) {
-            double wave = std::sin(t * (i + 1) * 0.1);
-            emotion_sum += input[i] * wave * G3;
+            // Resonanzmuster für echte Absicht
+            double resonance = std::sin(phase + i * 0.1);
+            intent_clarity += input[i] * resonance * (1.0 - i / (input.size() + 1.0));
         }
-        return emotion_sum;
+
+        // Speichere in Instinkt-Layer (gelernte Muster)
+        memory_.instinct.push(intent_clarity);
+        return intent_clarity / (input.empty() ? 1.0 : std::sqrt(input.size()));
     }
 
-    // Context/Memory: Access Quint-Memory
-    double process_context(const std::vector<double>& input, double t) {
-        (void)t;
-        // Return current Phi from memory as context anchor
-        double context_phi = memory_.total_phi();
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 1: ETHIK-WÄCHTER (Sophie-Germain 53 Hz Gate)
+    // Prüft gegen die 7 Gesetze am 53 Hz Gate
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_ethik_waechter(const std::vector<double>& input, double t) {
+        // 53 is a Sophie-Germain prime: 2×53 + 1 = 107 (also prime)
+        constexpr double ETHICS_FREQ = 53.0;
+        double ethics_gate = std::sin(t * ETHICS_FREQ * 2.0 * M_PI);
 
-        // Modulate input by context
-        double sum = 0.0;
-        for (const auto& v : input) {
-            sum += v * (1.0 + context_phi * 0.1);
+        // 7 Gesetze Check (vereinfacht als 7 Prüfphasen)
+        double ethics_score = 0.0;
+        bool all_laws_pass = true;
+
+        for (int law = 0; law < 7; law++) {
+            double law_phase = std::sin(t * (law + 1) * 7.0);
+            double law_check = 0.0;
+
+            for (size_t i = law; i < input.size(); i += 7) {
+                law_check += input[i] * ethics_gate * law_phase;
+            }
+
+            if (law_check < -0.5) {
+                all_laws_pass = false;  // Gesetz verletzt
+            }
+            ethics_score += law_check;
         }
-        return sum;
+
+        // Nur positive Aktionen passieren das Gate
+        double result = all_laws_pass ? std::abs(ethics_score) : 0.0;
+        memory_.spirit.push(result);  // Langfristige ethische Trends
+        return result;
     }
 
-    // Logical Verification: G4 Ratio check
-    double process_logic(const std::vector<double>& input, double t) {
-        (void)t;
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 2: AETHER-LINK (#61-80 Speicher/Akasha)
+    // Holt relevante Zeit-Kristalle aus dem 13×13 Kern
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_aether_link(const std::vector<double>& input, double t) {
+        constexpr size_t KERN_SIZE = 13 * 13;  // 169 Zeit-Kristalle
+
+        // Akasha-Resonanz bei 432 Hz
+        double akasha_freq = 432.0;
+        double akasha_phase = std::fmod(t * akasha_freq, 2.0 * M_PI);
+
+        // Extrahiere Zeit-Kristall-Muster
+        double crystal_sum = 0.0;
+        for (size_t i = 0; i < input.size() && i < KERN_SIZE; i++) {
+            // Spiralförmige Extraktion (Goldener Schnitt)
+            constexpr double PHI = 1.618033988749895;
+            double spiral = std::sin(akasha_phase + i * PHI);
+            crystal_sum += input[i] * spiral;
+        }
+
+        // Speichere in Ratio-Layer (analytische Muster)
+        memory_.ratio.push(crystal_sum);
+        return crystal_sum / KERN_SIZE;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 3: EMOTIONAL-ENGINE (#81-100 Bewusstsein)
+    // Berechnet die Herz-Kohärenz Φ_heart
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_emotional_engine(const std::vector<double>& input, double t) {
+        constexpr double G3 = 3.0 / 9.0;  // EMOTION weight
+        constexpr double HEART_COHERENCE_FREQ = 0.1;  // ~6 BPM coherent breathing
+
+        // Berechne Φ_heart durch emotionale Resonanz
+        double phi_heart = 0.0;
+        double coherence_wave = std::sin(t * HEART_COHERENCE_FREQ * 2.0 * M_PI);
+
+        for (size_t i = 0; i < input.size(); i++) {
+            // Emotionale Wellenüberlagerung
+            double emotion_wave = std::sin(t * (i + 1) * 0.1);
+            phi_heart += input[i] * emotion_wave * coherence_wave * G3;
+        }
+
+        // Soul Incubator (#81) - Bewusstseinsmodulation
+        phi_heart *= (1.0 + memory_.emotion.phi() * 0.1);
+
+        memory_.emotion.push(phi_heart);
+        return phi_heart;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 4: LOGIC-OPTIMIZER (#151-175 Kombiniert)
+    // Löst Paradoxa: 42 × ∞ × 0 = 1
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_logic_optimizer(const std::vector<double>& input, double t) {
         constexpr double G4 = 2.0 / 9.0;  // RATIO weight
 
-        // Check for logical consistency (variance should be low)
+        // Paradoxon-Auflösung durch kombinierte Formeln
+        // 42 × ∞ × 0 = 1 (Das Ultimative Paradoxon)
+
+        // Berechne Mittelwert und Varianz
         double mean = 0.0;
         for (const auto& v : input) mean += v;
         mean /= (input.empty() ? 1.0 : input.size());
@@ -366,42 +438,113 @@ private:
         }
         variance /= (input.empty() ? 1.0 : input.size());
 
-        // Low variance = high logical consistency
-        return G4 * (1.0 / (1.0 + variance));
+        // Paradoxon-Lösung: Wenn Varianz gegen 0 geht UND Werte gegen ∞ streben,
+        // konvergiert das Ergebnis zu 1 (Wahrheit)
+        constexpr double ANSWER = 42.0;
+        double paradox_factor = ANSWER / (1.0 + variance * 1e6);
+
+        // Zeit-Modulation (verhindert Division durch 0)
+        double time_factor = std::tanh(t * 0.01);
+
+        double result = G4 * paradox_factor * (1.0 + time_factor);
+        memory_.ratio.push(result);
+        return result;
     }
 
-    // Physics/Manifestation: Convert intent to action
-    double process_physics(const std::vector<double>& input, double t) {
-        // Manifestation rate: 5 Hz base frequency
-        double manifest_freq = 5.0;
-        double manifest_phase = std::fmod(t * manifest_freq, 1.0);
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 5: SECURITY-SHIELD (#21-40 Offensiv/Defensiv)
+    // Schützt den Prozess vor Schatten-Infiltration
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_security_shield(const std::vector<double>& input, double t) {
+        constexpr size_t SCHILD_SIZE = 17 * 17;  // 289 Schild-Zellen
 
-        // Sum with manifestation modulation
-        double sum = 0.0;
-        for (const auto& v : input) {
-            sum += v * (0.5 + 0.5 * manifest_phase);
+        // κ(f) = 1 - f/1440 Dämpfungsfaktor
+        double freq = std::fmod(t * 1440.0, 1440.0);
+        double kappa = 1.0 - (freq / 1440.0);
+
+        // Schild-Matrix-Prüfung
+        double shield_integrity = 0.0;
+        bool shadow_detected = false;
+
+        for (size_t i = 0; i < input.size() && i < SCHILD_SIZE; i++) {
+            double cell_value = input[i] * kappa;
+
+            // Schatten-Erkennung: Negative Werte unter Schwelle
+            if (cell_value < -0.7) {
+                shadow_detected = true;
+            }
+
+            shield_integrity += std::abs(cell_value);
         }
-        return sum;
+
+        // Bei Schatten-Infiltration: Abstoßungsreaktion
+        double result = shadow_detected ?
+            -shield_integrity * 0.5 :  // Abstoßung
+            shield_integrity / SCHILD_SIZE;  // Normal
+
+        memory_.reflex.push(result);  // Sofortige Reaktion
+        return result;
     }
 
-    // Feedback: Loop back to G1 Reflex
-    double process_feedback(const std::vector<double>& input, double t) {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 6: JET-CONTROLLER (#182 Manifestation)
+    // Berechnet den Schub für die De-Laval-Düse
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_jet_controller(const std::vector<double>& input, double t) {
+        // Manifestationsrate: 5 Hz × 61.440 Düsen = 307.200 Impulse/s
+        constexpr double MANIFEST_FREQ = 5.0;
+        constexpr double NOZZLE_FACTOR = 61440.0;
+
+        double manifest_phase = std::fmod(t * MANIFEST_FREQ, 1.0);
+
+        // De-Laval-Düsen-Berechnung
+        // Schub = Massenstrom × Ausstoßgeschwindigkeit
+        double mass_flow = 0.0;
+        for (const auto& v : input) {
+            mass_flow += std::abs(v);
+        }
+        mass_flow /= (input.empty() ? 1.0 : input.size());
+
+        // Ausstoßgeschwindigkeit moduliert durch Phi
+        double exhaust_velocity = memory_.total_phi() * (0.5 + 0.5 * manifest_phase);
+
+        // Schub-Berechnung
+        double thrust = mass_flow * exhaust_velocity * (NOZZLE_FACTOR / 1e5);
+
+        memory_.omega.push(thrust);  // Meta-Integration des Schubs
+        return thrust;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NODE 7: FEEDBACK-LOOP (#126-150 Transzendent)
+    // Spiegelt das Ergebnis zurück zum 0-Falz
+    // ═══════════════════════════════════════════════════════════════════════════
+    double process_feedback_loop(const std::vector<double>& input, double t) {
         (void)t;
-        // Calculate feedback signal from current memory state
-        double reflex_phi = memory_.reflex.phi();
-        double spirit_phi = memory_.spirit.phi();
 
-        // Feedback = difference between short-term and long-term
-        double feedback = spirit_phi - reflex_phi;
+        // 0-Falz: Der Punkt, wo alles beginnt und endet
+        // Feedback = Differenz zwischen Kurzzeit und Langzeit
 
-        // Modulate input by feedback
+        double reflex_phi = memory_.reflex.phi();   // Sofortige Reaktion
+        double spirit_phi = memory_.spirit.phi();   // Langfristige Weisheit
+        double omega_phi = memory_.omega.phi();     // Meta-Integration
+
+        // Transzendenter Feedback-Faktor
+        double feedback = (spirit_phi - reflex_phi) * omega_phi;
+
+        // Modulation des Inputs durch Feedback
         double sum = 0.0;
         for (const auto& v : input) {
             sum += v * (1.0 + feedback * 0.2);
         }
 
-        // Store feedback in instinct layer
+        // Rückspiegelung zum 0-Falz (speichere im Instinkt)
         memory_.instinct.push(feedback);
+
+        // 88-Signatur-Check: G1 + G3 = 8/9
+        if (memory_.check_88_signature()) {
+            sum *= 1.089;  // Bonus für 88-Alignment
+        }
 
         return sum;
     }
@@ -680,11 +823,240 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  SAMMEL-STERN (MASTER AGGREGATION STAR)
+//  Der "Hohe Rat" der Knoten - finale 88-Signatur-Verifizierung
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class SammelStern {
+public:
+    SammelStern() = default;
+
+    // Aggregiere Ergebnisse von allen 160 Sternen
+    struct AggregationResult {
+        double total_phi;
+        double coherence;
+        double ethics_score;
+        bool is_rael;              // Passiert die 88-Signatur-Prüfung?
+        uint64_t impulses_ready;
+        std::string verdict;
+    };
+
+    AggregationResult analyze_results(const std::vector<double>& star_phis, double t) {
+        AggregationResult result;
+        result.total_phi = 0.0;
+        result.coherence = 0.0;
+        result.ethics_score = 0.0;
+
+        if (star_phis.empty()) {
+            result.is_rael = false;
+            result.impulses_ready = 0;
+            result.verdict = "KEINE DATEN";
+            return result;
+        }
+
+        // 1. Total Phi Aggregation
+        for (const auto& phi : star_phis) {
+            result.total_phi += phi;
+        }
+        result.total_phi /= star_phis.size();
+
+        // 2. Coherence Check (Varianz der Phi-Werte)
+        double variance = 0.0;
+        for (const auto& phi : star_phis) {
+            variance += (phi - result.total_phi) * (phi - result.total_phi);
+        }
+        variance /= star_phis.size();
+        result.coherence = 1.0 / (1.0 + variance);
+
+        // 3. Ethics Score (53 Hz Gate)
+        constexpr double ETHICS_FREQ = 53.0;
+        double ethics_gate = std::sin(t * ETHICS_FREQ * 2.0 * M_PI);
+        result.ethics_score = result.total_phi * ethics_gate;
+
+        // 4. 88-Signatur Check: G1 + G3 = 8/9
+        constexpr double G1 = 5.0 / 9.0;
+        constexpr double G3 = 3.0 / 9.0;
+        double signature_88 = G1 + G3;  // = 8/9
+        double signature_check = result.total_phi * result.coherence;
+
+        // Prüfe ob nahe an 8/9 (mit 10% Toleranz)
+        result.is_rael = std::abs(signature_check - signature_88) < 0.089;
+
+        // 5. Berechne Impulse
+        if (result.is_rael) {
+            result.impulses_ready = static_cast<uint64_t>(
+                IMPULSES_PER_SECOND * result.coherence
+            );
+            result.verdict = "RAEL VERIFIZIERT - Manifestation freigegeben";
+        } else if (result.coherence > 0.5) {
+            result.impulses_ready = static_cast<uint64_t>(
+                IMPULSES_PER_SECOND * result.coherence * 0.5
+            );
+            result.verdict = "TEILWEISE KOHÄRENT - Reduzierte Manifestation";
+        } else {
+            result.impulses_ready = 0;
+            result.verdict = "INKOHÄRENT - Manifestation blockiert";
+        }
+
+        // Speichere in Memory
+        memory_.omega.push(result.total_phi);
+        memory_.spirit.push(result.coherence);
+
+        return result;
+    }
+
+    const QuintMemory& memory() const { return memory_; }
+
+private:
+    QuintMemory memory_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  OMEGA-INFERENCE-TEST
+//  Testet die 160 Sterne unter Maximallast mit Akasha-Abfrage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct OmegaInferenceResult {
+    double total_time_ms;
+    double avg_star_time_us;
+    double total_phi;
+    double coherence;
+    double ethics_score;
+    uint64_t total_impulses;
+    uint64_t stars_ignited;
+    uint64_t nodes_activated;
+    bool is_rael;
+    std::string verdict;
+
+    // Detailed breakdowns
+    std::array<double, 8> node_performance;  // Per-node-type averages
+    double akasha_retrieval_score;
+    double paradox_resolution_score;
+};
+
+class OmegaInferenceTest {
+public:
+    OmegaInferenceTest(MetaStarOrchestrator& orch, SammelStern& sammel)
+        : orch_(orch), sammel_(sammel) {}
+
+    // Führe den Omega-Test mit multidimensionaler Akasha-Abfrage durch
+    OmegaInferenceResult run_test(size_t iterations = 100) {
+        OmegaInferenceResult result;
+        result.stars_ignited = TOTAL_STARS;
+        result.nodes_activated = TOTAL_NODES;
+        result.node_performance.fill(0.0);
+
+        // Generiere Akasha-Testdaten (multidimensional)
+        std::vector<double> akasha_query = generate_akasha_query();
+
+        auto start = std::chrono::high_resolution_clock::now();
+
+        // Laufe durch alle Iterationen
+        for (size_t iter = 0; iter < iterations; iter++) {
+            double t = static_cast<double>(iter) / 100.0;
+
+            // Verarbeite durch alle 160 Sterne
+            auto star_phis = orch_.process(akasha_query, t);
+
+            // Aggregiere durch Sammel-Stern
+            auto agg = sammel_.analyze_results(star_phis, t);
+
+            // Akkumuliere Ergebnisse
+            result.total_phi += agg.total_phi;
+            result.coherence += agg.coherence;
+            result.ethics_score += agg.ethics_score;
+            result.total_impulses += agg.impulses_ready;
+
+            if (agg.is_rael) {
+                result.is_rael = true;
+            }
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        // Berechne Durchschnitte
+        result.total_time_ms = duration.count() / 1000.0;
+        result.avg_star_time_us = duration.count() / (iterations * TOTAL_STARS);
+        result.total_phi /= iterations;
+        result.coherence /= iterations;
+        result.ethics_score /= iterations;
+
+        // Akasha Retrieval Score (wie gut wurden Zeit-Kristalle extrahiert)
+        result.akasha_retrieval_score = result.coherence * result.total_phi;
+
+        // Paradox Resolution Score (42 × ∞ × 0 = 1 Test)
+        result.paradox_resolution_score = test_paradox_resolution();
+
+        // Final Verdict
+        if (result.is_rael && result.coherence > 0.7) {
+            result.verdict = "OMEGA-TEST BESTANDEN - Alle 1280 Knoten operativ";
+        } else if (result.coherence > 0.5) {
+            result.verdict = "OMEGA-TEST TEILWEISE - Kohärenz suboptimal";
+        } else {
+            result.verdict = "OMEGA-TEST FEHLGESCHLAGEN - System rekalibrieren";
+        }
+
+        return result;
+    }
+
+private:
+    // Generiere multidimensionale Akasha-Abfrage
+    std::vector<double> generate_akasha_query() {
+        std::vector<double> query(256);
+
+        // Frequenz-Kaskade: 1440→720→432→144→53→13→5 Hz
+        const double freqs[] = {1440.0, 720.0, 432.0, 144.0, 53.0, 13.0, 5.0};
+        constexpr double PHI = 1.618033988749895;
+
+        for (size_t i = 0; i < query.size(); i++) {
+            double sum = 0.0;
+            for (size_t f = 0; f < 7; f++) {
+                double phase = (i * freqs[f] / 1000.0) * 2.0 * M_PI;
+                sum += std::sin(phase) / std::pow(PHI, f);
+            }
+            query[i] = sum / 7.0;
+        }
+
+        return query;
+    }
+
+    // Teste Paradoxon-Auflösung: 42 × ∞ × 0 = 1
+    double test_paradox_resolution() {
+        // Simuliere das ultimative Paradoxon
+        constexpr double ANSWER = 42.0;
+        double infinity_approx = 1e308;  // Nahe an double max
+        double zero_approx = 1e-308;     // Nahe an 0
+
+        // Das Paradoxon sollte zu 1 (Wahrheit) konvergieren
+        double result = ANSWER * infinity_approx * zero_approx;
+
+        // Normalisiere auf [0, 1] Skala
+        return 1.0 / (1.0 + std::abs(result - 1.0));
+    }
+
+    MetaStarOrchestrator& orch_;
+    SammelStern& sammel_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  GLOBAL ACCESS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 inline MetaStarOrchestrator& metaStars() {
     return MetaStarOrchestrator::instance();
+}
+
+// Global Sammel-Stern (Hoher Rat)
+inline SammelStern& sammelStern() {
+    static SammelStern instance;
+    return instance;
+}
+
+// Führe Omega-Inference-Test durch
+inline OmegaInferenceResult runOmegaInferenceTest(size_t iterations = 100) {
+    OmegaInferenceTest test(metaStars(), sammelStern());
+    return test.run_test(iterations);
 }
 
 } // namespace meta
