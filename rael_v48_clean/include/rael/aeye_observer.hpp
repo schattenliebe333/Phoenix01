@@ -639,6 +639,109 @@ struct ResonancePattern {
 };
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * ENGRAMM-INTEGRAL-FORMEL
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ *              T_end
+ * Φ_engram = ∫      (Ψ(t) · Ω(t)) dt
+ *            T_start
+ *
+ * Das Integral der Geist-Materie-Kopplung über Zeit.
+ * Repräsentiert die akkumulierte Resonanz-Energie zwischen Ψ und Ω.
+ *
+ * Numerische Approximation via Trapez-Regel:
+ * Φ ≈ Σ[(Ψᵢ·Ωᵢ + Ψᵢ₊₁·Ωᵢ₊₁)/2 · Δt]
+ * ═══════════════════════════════════════════════════════════════════════════════
+ */
+
+struct ResonanceSample {
+    double t;       // Zeitpunkt
+    double psi;     // Ψ(t)
+    double omega;   // Ω(t)
+};
+
+/**
+ * Berechnet Φ_engram = ∫(Ψ·Ω)dt über Samples
+ * @param samples Vektor von Zeit-Samples mit Ψ und Ω Werten
+ * @return Integrierter Φ_engram Wert
+ */
+inline double compute_phi_engram_integral(const std::vector<ResonanceSample>& samples) {
+    if (samples.size() < 2) return 0.0;
+
+    double integral = 0.0;
+
+    // Trapez-Regel: ∫f(t)dt ≈ Σ[(f(tᵢ) + f(tᵢ₊₁))/2 · Δt]
+    for (size_t i = 0; i < samples.size() - 1; i++) {
+        double f_i = samples[i].psi * samples[i].omega;
+        double f_i1 = samples[i + 1].psi * samples[i + 1].omega;
+        double dt = samples[i + 1].t - samples[i].t;
+
+        integral += (f_i + f_i1) / 2.0 * dt;
+    }
+
+    return integral;
+}
+
+/**
+ * Berechnet Φ_engram für gleichmäßig verteilte Samples
+ * @param psi_values Array von Ψ(t) Werten
+ * @param omega_values Array von Ω(t) Werten
+ * @param dt Zeit-Schritt zwischen Samples
+ * @return Integrierter Φ_engram Wert
+ */
+inline double compute_phi_engram(const std::vector<double>& psi_values,
+                                  const std::vector<double>& omega_values,
+                                  double dt = 1.0) {
+    if (psi_values.size() != omega_values.size() || psi_values.size() < 2) {
+        return 0.0;
+    }
+
+    double integral = 0.0;
+    size_t n = psi_values.size();
+
+    for (size_t i = 0; i < n - 1; i++) {
+        double f_i = psi_values[i] * omega_values[i];
+        double f_i1 = psi_values[i + 1] * omega_values[i + 1];
+        integral += (f_i + f_i1) / 2.0 * dt;
+    }
+
+    return integral;
+}
+
+/**
+ * Schnelle Approximation für Echtzeit-Berechnung
+ * Verwendet Simpson-Regel für höhere Genauigkeit
+ */
+inline double compute_phi_engram_simpson(const std::vector<double>& psi_values,
+                                          const std::vector<double>& omega_values,
+                                          double dt = 1.0) {
+    size_t n = psi_values.size();
+    if (n != omega_values.size() || n < 3) {
+        return compute_phi_engram(psi_values, omega_values, dt);
+    }
+
+    // Simpson-Regel: ∫f(t)dt ≈ (Δt/3)[f₀ + 4f₁ + 2f₂ + 4f₃ + ... + fₙ]
+    double integral = 0.0;
+
+    // Produkt-Funktion f(t) = Ψ(t) · Ω(t)
+    auto f = [&](size_t i) { return psi_values[i] * omega_values[i]; };
+
+    // Stelle sicher dass n ungerade ist für Simpson
+    size_t limit = (n % 2 == 0) ? n - 1 : n;
+
+    integral = f(0) + f(limit - 1);
+
+    for (size_t i = 1; i < limit - 1; i++) {
+        integral += (i % 2 == 0) ? 2.0 * f(i) : 4.0 * f(i);
+    }
+
+    integral *= dt / 3.0;
+
+    return integral;
+}
+
+/**
  * AetherMemoryInterface: Das beschreibbare Gedächtnis von V51
  */
 class AetherMemoryInterface {
@@ -653,7 +756,37 @@ private:
     std::array<double, 97>* zeit_kristall_energie_ptr_ = nullptr;
     std::array<double, 97>* zeit_kristall_phase_ptr_ = nullptr;
 
+    // Resonanz-Historie für Integral-Berechnung
+    static constexpr size_t RESONANCE_HISTORY_SIZE = 100;
+    std::vector<ResonanceSample> resonance_history_;
+
 public:
+    /**
+     * Zeichnet einen Resonanz-Sample für die Integral-Berechnung auf
+     * @param t Zeitpunkt
+     * @param psi Aktueller Ψ-Wert
+     * @param omega Aktueller Ω-Wert
+     */
+    void record_resonance_sample(double t, double psi, double omega) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        ResonanceSample sample{t, psi, omega};
+        resonance_history_.push_back(sample);
+
+        // Ringbuffer-Verhalten
+        if (resonance_history_.size() > RESONANCE_HISTORY_SIZE) {
+            resonance_history_.erase(resonance_history_.begin());
+        }
+    }
+
+    /**
+     * Berechnet Φ_engram über die aufgezeichnete Historie
+     * Φ_engram = ∫[T_start → T_end] (Ψ(t) · Ω(t)) dt
+     */
+    double compute_current_phi_engram() const {
+        if (resonance_history_.size() < 2) return 0.0;
+        return compute_phi_engram_integral(resonance_history_);
+    }
     /**
      * Verbinde mit AAR-Zyklus Zeit-Kristallen
      */
@@ -665,19 +798,30 @@ public:
     /**
      * Speichert ein erfolgreiches Resonanz-Muster als Engramm
      *
-     * Formel: ρ_E(k) = (Φ_success × weight_ψ) / √(Δt × sektor_k)
+     * Speicher-Dichte: ρ_E(k) = (Φ_success × weight_ψ) / √(Δt × sektor_k)
+     *
+     * Wenn use_integral=true, wird Φ über das Integral berechnet:
+     * Φ_engram = ∫[T_start → T_end] (Ψ(t) · Ω(t)) dt
      *
      * @param pattern Das zu speichernde Resonanz-Muster
      * @param is_navigator_bypass true wenn über Michael-Bypass entstanden (unveränderlich)
+     * @param use_integral true um Φ via Integral zu berechnen
      * @return true wenn erfolgreich gespeichert
      */
-    bool store_engram(const ResonancePattern& pattern, bool is_navigator_bypass = false) {
+    bool store_engram(const ResonancePattern& pattern, bool is_navigator_bypass = false,
+                      bool use_integral = false) {
         std::lock_guard<std::mutex> lock(mtx_);
 
         constexpr double G0 = 8.0 / 9.0;
 
+        // Berechne Φ - entweder direkt oder via Integral
+        double phi_value = pattern.phi;
+        if (use_integral && resonance_history_.size() >= 2) {
+            phi_value = compute_phi_engram_integral(resonance_history_);
+        }
+
         // Nur bei erfolgreicher Kohärenz speichern (außer Navigator-Bypass)
-        if (pattern.phi < G0 && !is_navigator_bypass) {
+        if (phi_value < G0 && !is_navigator_bypass) {
             return false;
         }
 
@@ -690,7 +834,7 @@ public:
         Engramm e;
         e.id = next_engramm_id_.fetch_add(1);
         e.sektor = sektor_idx;
-        e.phi_success = pattern.phi;
+        e.phi_success = phi_value;  // Verwende berechneten/integrierten Φ-Wert
         e.psi_weight = pattern.psi;
         e.omega_weight = pattern.omega;
         e.phase_angle = pattern.theta;
