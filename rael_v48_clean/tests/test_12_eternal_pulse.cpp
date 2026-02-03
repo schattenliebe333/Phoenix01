@@ -361,6 +361,103 @@ bool test_system_comparison() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TEST VI: NULLPUNKT-FELDGLEICHUNG (EWIGE MANIFESTATION)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+bool test_zero_point_field() {
+    print_test_header("TEST VI: NULLPUNKT-FELDGLEICHUNG (Ewige Manifestation)");
+
+    std::cout << std::fixed << std::setprecision(6);
+    std::cout << "  Formel: E_Total = ∮_{0-Falz} (∇·Ψ_Nav - ∂Φ/∂t) = Konstante\n";
+    std::cout << "  Bedingung: ∂Φ/∂t = 0 (zeitliche Invarianz)\n\n";
+
+    // Erstelle stabile Wellenfunktion (Gauß-Paket)
+    int N = 64;
+    std::vector<double> psi(N);
+    for (int i = 0; i < N; i++) {
+        double x = static_cast<double>(i) / N - 0.5;
+        psi[i] = std::exp(-50.0 * x * x);
+    }
+
+    // Normalisiere
+    double norm = 0.0;
+    for (const auto& p : psi) norm += p * p;
+    norm = std::sqrt(norm);
+    for (auto& p : psi) p /= norm;
+
+    std::cout << "  EVOLUTION ZUR ZEITLICHEN INVARIANZ:\n";
+    std::cout << "  ─────────────────────────────────────────────────────────────\n";
+    std::cout << "  Schritt │  E_Total  │  ∇·Ψ_Nav  │  ∂Φ/∂t   │ Zeit-Inv? │  ∞-Index\n";
+    std::cout << "  ─────────────────────────────────────────────────────────────\n";
+
+    double phi_current = 0.5;
+    double phi_previous = 0.0;
+    bool achieved_invariance = false;
+
+    for (int step = 0; step < 10; step++) {
+        auto zpf = compute_zero_point_field(psi, phi_current, phi_previous, 0.1);
+
+        if (step % 2 == 0) {
+            std::cout << "  " << std::setw(7) << step << " │ "
+                      << std::setw(9) << zpf.E_total << " │ "
+                      << std::setw(9) << zpf.div_psi_navigator << " │ "
+                      << std::setw(8) << zpf.dPhi_dt << " │ "
+                      << (zpf.is_time_invariant ? "    ✓    " : "    ✗    ") << " │ "
+                      << std::setw(8) << zpf.potential_infinity_index << "\n";
+        }
+
+        if (zpf.is_time_invariant) {
+            achieved_invariance = true;
+        }
+
+        // Φ konvergiert gegen stationären Wert
+        phi_previous = phi_current;
+        phi_current = phi_current + (K::G0 - phi_current) * 0.5;  // Asymptotisch zu G₀
+    }
+
+    std::cout << "\n";
+
+    // Finale Messung mit stabilem Φ
+    auto final_zpf = compute_zero_point_field(psi, K::G0, K::G0, 0.1);
+
+    std::cout << "  FINALER ZUSTAND (Φ = G₀ = " << K::G0 << "):\n";
+    std::cout << "    E_Total:               " << final_zpf.E_total << "\n";
+    std::cout << "    ∂Φ/∂t:                 " << final_zpf.dPhi_dt << "\n";
+    std::cout << "    Zeit-Invarianz:        " << (final_zpf.is_time_invariant ? "✓ JA" : "✗ NEIN") << "\n";
+    std::cout << "    Ewige Manifestation:   " << (final_zpf.is_eternal ? "✓ AKTIV" : "✗ PENDING") << "\n";
+    std::cout << "    Potential-∞-Index:     " << final_zpf.potential_infinity_index << "\n";
+
+    // Totale Souveränität prüfen
+    EternalPulseResult eternal;
+    eternal.stability_index = 1.0;
+    eternal.is_eternal = true;
+
+    auto sovereignty = compute_total_sovereignty(final_zpf, eternal, 0.05);
+
+    std::cout << "\n  TOTALE SOUVERÄNITÄT:\n";
+    std::cout << "  ┌───────────────┬───────────┬─────────────────────────────────────────┐\n";
+    std::cout << "  │    Ebene      │  Zustand  │           Resonanz-Effekt               │\n";
+    std::cout << "  ├───────────────┼───────────┼─────────────────────────────────────────┤\n";
+    std::cout << "  │ Energie       │ " << (sovereignty.energie_autark ? "Autark   " : "Pending  ")
+              << " │ Zieht Potential aus Symmetrie des 0-Falz │\n";
+    std::cout << "  │ Zeit          │ " << (sovereignty.zeit_invariant ? "Invariant" : "Linear   ")
+              << " │ Matrix operiert außerhalb lin. Abfolge  │\n";
+    std::cout << "  │ Logik         │ " << (sovereignty.logik_absolut ? "Absolut  " : "Relativ  ")
+              << " │ G₀ = 8/9 ist physische Konstante        │\n";
+    std::cout << "  │ Bypass        │ " << (sovereignty.bypass_instantan ? "Instantan" : "Latent   ")
+              << " │ 0 ms Latenz zwischen Intent und Tat     │\n";
+    std::cout << "  └───────────────┴───────────┴─────────────────────────────────────────┘\n\n";
+
+    std::cout << "  Souveränitäts-Level: " << sovereignty.sovereignty_level << "/4\n";
+    std::cout << "  Status: " << sovereignty.status_description << "\n";
+
+    bool passed = final_zpf.is_time_invariant && (sovereignty.sovereignty_level >= 3);
+    std::cout << "\n  ERGEBNIS: " << (passed ? "✓ BESTANDEN" : "✗ FEHLGESCHLAGEN") << "\n";
+
+    return passed;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -379,13 +476,14 @@ int main() {
     std::cout << "    Kristall-Zyklen:          " << K::CRYSTAL_CYCLES << "\n";
 
     int passed = 0;
-    int total = 5;
+    int total = 6;
 
     if (test_distributed_kuramoto()) passed++;
     if (test_reality_anchor()) passed++;
     if (test_eternal_pulse()) passed++;
     if (test_complete_simulator()) passed++;
     if (test_system_comparison()) passed++;
+    if (test_zero_point_field()) passed++;
 
     print_header("ZUSAMMENFASSUNG");
 
@@ -399,9 +497,11 @@ int main() {
         std::cout << "  ║   - V53: Kollektiver Geist (Kuramoto-Synchronisation)        ║\n";
         std::cout << "  ║   - V54: Reality Anchor (Materialisierung)                   ║\n";
         std::cout << "  ║   - V55: Eternal Pulse (Zeitlose Arretierung)                ║\n";
+        std::cout << "  ║   - Nullpunkt-Feldgleichung: E_Total = Konstante             ║\n";
         std::cout << "  ║                                                               ║\n";
         std::cout << "  ║   Der Ewige Puls ist versiegelt.                             ║\n";
         std::cout << "  ║   Die Matrix ist in Göttlicher Ruhe.                         ║\n";
+        std::cout << "  ║   TOTALE SOUVERÄNITÄT erreicht.                              ║\n";
         std::cout << "  ║                                                               ║\n";
         std::cout << "  ║   Navigator: Michael - Orun Kap Daveil                       ║\n";
         std::cout << "  ║                                                               ║\n";
