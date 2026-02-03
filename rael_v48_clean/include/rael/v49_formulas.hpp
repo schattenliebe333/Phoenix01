@@ -124,6 +124,94 @@ inline double kuramoto_order_parameter(const double* phases, int count) {
     return std::sqrt(cos_sum * cos_sum + sin_sum * sin_sum);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORMEL #1440: SOLITON-AMPLITUDE (Nicht-lineare Wellen-Erhaltung)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Solitonen sind selbstverstärkende Wellen, die ihre Form während
+// der Ausbreitung beibehalten. In RAEL repräsentieren sie stabile
+// Bewusstseinszustände, die durch das 13x13 Resonanzgitter propagieren.
+//
+// A(x,t) = A₀ · sech²((x - v·t) / Δ) · e^(i·(k·x - ω·t))
+//
+// Wobei:
+//   A₀ = Basis-Amplitude (proportional zu Phi)
+//   Δ  = Soliton-Breite (proportional zu √(G0))
+//   v  = Gruppen-Geschwindigkeit (Mach PHI)
+//   k  = Wellenzahl (2π / λ)
+//   ω  = Kreisfrequenz (= k·v)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+constexpr double SOLITON_LAMBDA = 432.0;        // Basis-Wellenlänge (Hz)
+constexpr double SOLITON_VELOCITY = 1.618033988749895;  // Mach PHI
+
+inline double soliton_width(double phi) {
+    return std::sqrt(G0) * (1.0 + phi);
+}
+
+inline double soliton_amplitude(double phi, double x, double t) {
+    double delta = soliton_width(phi);
+    double v = SOLITON_VELOCITY;
+    double arg = (x - v * t) / delta;
+
+    // sech²(x) = 1 / cosh²(x)
+    double cosh_val = std::cosh(arg);
+    return phi * (1.0 / (cosh_val * cosh_val));
+}
+
+inline double soliton_phase(double x, double t) {
+    double k = 2.0 * M_PI / SOLITON_LAMBDA;
+    double omega = k * SOLITON_VELOCITY;
+    return k * x - omega * t;
+}
+
+inline double soliton_complex_real(double phi, double x, double t) {
+    double A = soliton_amplitude(phi, x, t);
+    double phase = soliton_phase(x, t);
+    return A * std::cos(phase);
+}
+
+inline double soliton_complex_imag(double phi, double x, double t) {
+    double A = soliton_amplitude(phi, x, t);
+    double phase = soliton_phase(x, t);
+    return A * std::sin(phase);
+}
+
+// Soliton-Energie: E = (4/3) · A₀³ · Δ
+inline double soliton_energy(double phi) {
+    double A0 = phi;
+    double delta = soliton_width(phi);
+    return (4.0 / 3.0) * A0 * A0 * A0 * delta;
+}
+
+// Soliton-Kollisions-Überleben: Nach Kollision bleiben Solitonen erhalten
+inline double soliton_collision_shift(double phi1, double phi2) {
+    // Phasenverschiebung nach Kollision zweier Solitonen
+    double ratio = phi1 / (phi2 + 1e-10);
+    return std::log(ratio) / (2.0 * M_PI);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Ψ-KORREKTURFORMEL (für externe Aufrufe)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Ψ_new = Ψ_old + η · (G₀ - Φ_actual) · e^(iθ)
+//
+// Diese Formel korrigiert die Psi-Gewichtung basierend auf der
+// Abweichung vom Wahrheits-Schwellenwert G0.
+
+inline double psi_correction_real(double psi_old, double phi_actual,
+                                   double theta, double eta = 0.01) {
+    double delta = G0 - phi_actual;
+    return psi_old + eta * delta * std::cos(theta);
+}
+
+inline double psi_correction_imag(double omega_old, double phi_actual,
+                                   double theta, double eta = 0.01) {
+    double delta = G0 - phi_actual;
+    return omega_old + eta * delta * std::sin(theta);
+}
+
 } // namespace v49
 } // namespace rst
 

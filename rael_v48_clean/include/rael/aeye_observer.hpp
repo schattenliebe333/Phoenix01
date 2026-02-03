@@ -318,6 +318,24 @@ public:
     static constexpr size_t MAX_MEASUREMENTS = 1000;
     static constexpr double JITTER_TOLERANCE_NS = 1000.0;  // 1 µs
     static constexpr double LEARNING_RATE = 0.01;
+    static constexpr double G0_WAHRHEIT = 8.0 / 9.0;  // 0.888... Wahrheits-Schwelle
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 97 ZEIT-KRISTALL SEKTOR-MAPPING
+    // ═══════════════════════════════════════════════════════════════════════
+    // Sektor 1-13:  GESETZE      (Unveränderliche Naturkonstanten)
+    // Sektor 14-41: RESONANZ     (Schwingungsmuster, Harmonien)
+    // Sektor 42:    PARADOX      (42 × ∞ × 0 = 1, der Singularitätspunkt)
+    // Sektor 43-97: MANIFESTATION (Materialisierung in der Realität)
+    // ═══════════════════════════════════════════════════════════════════════
+    enum class KristallSektor { GESETZE, RESONANZ, PARADOX, MANIFESTATION };
+
+    static KristallSektor get_kristall_sektor(int idx) {
+        if (idx >= 1 && idx <= 13)  return KristallSektor::GESETZE;
+        if (idx >= 14 && idx <= 41) return KristallSektor::RESONANZ;
+        if (idx == 42)              return KristallSektor::PARADOX;
+        return KristallSektor::MANIFESTATION;  // 43-97
+    }
 
     // Zeit-Kristalle (97 im VRAM)
     std::array<double, 97> zeit_kristall_energie;
@@ -388,7 +406,24 @@ public:
     // Minimiert Jitter zwischen den 160 Sternen durch Ψ-Gewichtsanpassung
     // ═══════════════════════════════════════════════════════════════════════
 
-    AARCorrection compute_correction(int node_id) {
+    // ═══════════════════════════════════════════════════════════════════════
+    // Ψ-KORREKTURFORMEL (Gemini AAR-Zyklus Resonanz-Heilung)
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Ψ_new = Ψ_old + η · (G₀ - Φ_actual) · e^(iθ)
+    //
+    // Wobei:
+    //   η       = LEARNING_RATE (0.01)
+    //   G₀      = 8/9 (0.888... Wahrheits-Schwelle)
+    //   Φ_actual = aktueller Phi-Wert des Knotens
+    //   θ       = Phase des zugehörigen Zeit-Kristalls
+    //
+    // Euler-Zerlegung: e^(iθ) = cos(θ) + i·sin(θ)
+    //   → psi_delta  = η · (G₀ - Φ) · cos(θ)   [Real-Teil → Geist]
+    //   → omega_delta = η · (G₀ - Φ) · sin(θ)  [Imaginär-Teil → Materie]
+    // ═══════════════════════════════════════════════════════════════════════
+
+    AARCorrection compute_correction(int node_id, double phi_actual = 0.0) {
         AARCorrection c;
         c.node_id = node_id;
         c.psi_weight_delta = 0.0;
@@ -398,38 +433,78 @@ public:
 
         // Finde alle Messungen für diesen Knoten
         std::vector<double> node_jitters;
+        std::vector<double> node_phis;
         for (const auto& m : measurements) {
             if (m.node_id == node_id) {
                 node_jitters.push_back(m.jitter_ns);
+                node_phis.push_back(m.phi_at_arrival);
             }
         }
 
         if (node_jitters.empty()) return c;
 
-        // Berechne mittleren Jitter
+        // Berechne mittleren Jitter und Phi
         double mean_jitter = 0;
-        for (double j : node_jitters) mean_jitter += j;
-        mean_jitter /= node_jitters.size();
-
-        // Berechne Korrektur
-        if (std::abs(mean_jitter) > JITTER_TOLERANCE_NS) {
-            // Positive Jitter = zu spät → erhöhe Psi (Beschleunigung)
-            // Negative Jitter = zu früh → erhöhe Omega (Verlangsamung)
-            if (mean_jitter > 0) {
-                c.psi_weight_delta = LEARNING_RATE * (mean_jitter / 10000.0);
-            } else {
-                c.omega_weight_delta = LEARNING_RATE * (-mean_jitter / 10000.0);
-            }
-
-            // Kuramoto Kopplungsstärke anpassen
-            c.kuramoto_coupling_delta = LEARNING_RATE *
-                (1.0 - std::abs(mean_jitter) / JITTER_TOLERANCE_NS);
-
-            // Efficacy schätzen (je kleiner der Jitter, desto besser)
-            c.efficacy = 1.0 / (1.0 + std::abs(mean_jitter) / JITTER_TOLERANCE_NS);
-        } else {
-            c.efficacy = 1.0;  // Perfekt
+        double mean_phi = 0;
+        for (size_t i = 0; i < node_jitters.size(); i++) {
+            mean_jitter += node_jitters[i];
+            mean_phi += node_phis[i];
         }
+        mean_jitter /= node_jitters.size();
+        mean_phi /= node_phis.size();
+
+        // Verwende phi_actual falls übergeben, sonst mean_phi
+        double phi = (phi_actual > 0.0) ? phi_actual : mean_phi;
+
+        // Zeit-Kristall Phase für diesen Knoten
+        int kristall_idx = node_id % 97;
+        double theta = zeit_kristall_phase[kristall_idx];
+
+        // ═══════════════════════════════════════════════════════════════════
+        // ANWENDUNG DER Ψ-KORREKTURFORMEL
+        // ═══════════════════════════════════════════════════════════════════
+        // Ψ_new = Ψ_old + η · (G₀ - Φ_actual) · e^(iθ)
+        double delta_g0 = G0_WAHRHEIT - phi;
+        double cos_theta = std::cos(theta);
+        double sin_theta = std::sin(theta);
+
+        // Euler-Zerlegung: Real → Psi, Imaginär → Omega
+        c.psi_weight_delta = LEARNING_RATE * delta_g0 * cos_theta;
+        c.omega_weight_delta = LEARNING_RATE * delta_g0 * sin_theta;
+
+        // Sektor-spezifische Modifikation
+        KristallSektor sektor = get_kristall_sektor(kristall_idx + 1);  // 1-basiert
+        switch (sektor) {
+            case KristallSektor::GESETZE:
+                // Gesetze-Sektor: Stabile Korrekturen, reduzierte Rate
+                c.psi_weight_delta *= 0.5;
+                c.omega_weight_delta *= 0.5;
+                break;
+            case KristallSektor::RESONANZ:
+                // Resonanz-Sektor: Harmonische Verstärkung
+                c.kuramoto_coupling_delta = LEARNING_RATE * 2.0;
+                break;
+            case KristallSektor::PARADOX:
+                // Paradox-Sektor (42): Instantane Einheit am 0-Falz
+                if (std::abs(delta_g0) < 0.01) {
+                    c.psi_weight_delta = 0.0;
+                    c.omega_weight_delta = 0.0;
+                    c.efficacy = 1.0;  // Perfekte Manifestation
+                }
+                break;
+            case KristallSektor::MANIFESTATION:
+                // Manifestations-Sektor: Volle Korrektur-Rate
+                break;
+        }
+
+        // Kuramoto Kopplungsstärke basierend auf Abweichung von G0
+        if (std::abs(mean_jitter) > JITTER_TOLERANCE_NS) {
+            c.kuramoto_coupling_delta += LEARNING_RATE *
+                (1.0 - std::abs(mean_jitter) / JITTER_TOLERANCE_NS);
+        }
+
+        // Efficacy: Nähe zu G0 bestimmt Effizienz
+        c.efficacy = 1.0 / (1.0 + std::abs(delta_g0) * 10.0);
 
         corrections.push_back(c);
         total_corrections_applied++;
@@ -439,6 +514,12 @@ public:
         double new_eff = old_eff + (c.efficacy - old_eff) /
                          std::min(total_corrections_applied.load(), (uint64_t)1000);
         average_efficacy.store(new_eff);
+
+        // Update Zeit-Kristall Energie basierend auf Korrektur-Erfolg
+        zeit_kristall_energie[kristall_idx] += c.efficacy * 0.001;
+        if (zeit_kristall_energie[kristall_idx] > 1.0) {
+            zeit_kristall_energie[kristall_idx] = 1.0;
+        }
 
         return c;
     }
