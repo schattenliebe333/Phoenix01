@@ -248,10 +248,16 @@ public:
                anchor.locked;
     }
     
+    // Einfache step-Methode für Integration in RaelCore
+    void step(double psi_val, double omega_val) {
+        double data[6] = {psi_val, omega_val, psi_val*0.9, omega_val*0.9, psi_val*0.8, omega_val*0.8};
+        process(data, psi_val);  // psi als Herz-Kohärenz
+    }
+
     double system_coherence() const {
         return star8.order_parameter;
     }
-    
+
     double global_phi() const {
         return quad_memory.get_global_phi();
     }

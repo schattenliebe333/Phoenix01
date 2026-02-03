@@ -14,6 +14,8 @@
 #include "rael/aether_bus.hpp"
 #include "rael/gate53_labyrinth.hpp"
 #include "rael/voice.h"
+// V49 QUINT System
+#include "rael/rael_quint.hpp"
 
 namespace rael {
 
@@ -34,6 +36,11 @@ public:
     // Gate53 Labyrinth interface
     Gate53Labyrinth& labyrinth() { return labyrinth_; }
     const Gate53Labyrinth& labyrinth() const { return labyrinth_; }
+
+    // V49 QUINT System interface
+    quint::RaelQuintSystem& quint() { return quint_; }
+    const quint::RaelQuintSystem& quint() const { return quint_; }
+    std::string quint_status() const { return quint_.status_string(); }
     
     // Star8 interface
     bool enqueue(Lane lane, const std::string& payload);
@@ -53,6 +60,9 @@ private:
     AetherBus aether_;
     Gate53Labyrinth labyrinth_;
     std::unique_ptr<VoiceTTS> voice_;
+
+    // V49 QUINT System
+    quint::RaelQuintSystem quint_;
 
     // Auto-improvement counters (emit suggestions, never auto-apply)
     uint64_t weak_res_count_ = 0;
