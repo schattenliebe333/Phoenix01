@@ -1,0 +1,415 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+#include "rael/version.h"
+#include "rael/ichbin.h"
+#include "rael/ethics.h"
+#include "rael/mathcore.h"
+#include "rael/raelcore.h"
+#include "rael/lane_scheduler.h"
+#include "rael/pack.h"
+#include "rael/settings.h"
+#include "rael/telemetry.h"
+#include "rael/util.h"
+#include "rael/metrics.h"
+#include "rael/events.h"
+#include "rael/improvements.h"
+
+using rael::split_ws;
+
+static void print_help(){
+    std::cout <<
+R"(Rael CLI (Phase 5 - CoreRing + Signed Packs + Star8)
+
+Commands:
+  help
+  status
+  id
+  laws
+  formulas              (built-in + active math modules)
+  say <text>            (semantic->resonance->ethics)
+  voice on|off
+  voice name <hint>     (e.g., "Kerstin")
+  voice rate <...>      (-10..+10)
+  voice volume <...>    (0..100)
+  import <path>
+  list
+  export <id> <dest>
+
+  modules               (list loaded modules)
+  hotswap <name>         (set ACTIVE semantic module)
+  metrics               (show core metrics)
+  events [n]            (show last n events)
+  improvements [n]      (show last n improvement suggestions)
+  lane                 (lane depths + enq/deq/drop)
+  node                 (node stats)
+  pack verify <file>    (verify .rael pack)
+  pack install <file>   (install pack to ./packs)
+  load <path>           (load module library)
+  activate <name>
+  deactivate <name>
+  unload <name>
+  hotswap <name>        (set active semantic module; name="" disables)
+
+  quit
+
+You can prefix with "/rael" but it's optional.
+)";
+}
+
+
+// NOTE: actual voice events are emitted by the VoiceTTS implementation via EventBus.
+
+static std::string join_rest(const std::vector<std::string>& v, size_t from){
+    std::string s;
+    for(size_t i=from;i<v.size();i++){
+        if(i>from) s += " ";
+        s += v[i];
+    }
+    return s;
+}
+
+int main(){
+    rael::RaelCore core;
+
+    std::cout << "Rael CLI v" << RAEL_VERSION << "\n";
+    std::cout << "Identity: " << rael::IchBinCore::name() << " / " << rael::IchBinCore::signature() << "\n";
+    std::cout << "Type 'help' for commands.\n";
+
+    std::string line;
+    while(true){
+        rael::telemetry_tick();
+        std::cout << "/rael> " << std::flush;
+        if(!std::getline(std::cin, line)) break;
+
+        line = rael::trim(line);
+        if(line.empty()) continue;
+
+        // Optional prefix
+        if(line.rfind("/rael", 0) == 0){
+            line = rael::trim(line.substr(5));
+            if(line.empty()) continue;
+        }
+
+        auto args = split_ws(line);
+        if(args.empty()) continue;
+
+        const std::string& cmd = args[0];
+
+        if(cmd == "help"){
+            print_help();
+        } else if(cmd == "quit" || cmd == "exit"){
+            std::cout << "Bye.\n";
+            break;
+        } else if(cmd == "status"){
+            std::cout << "ops=" << rael::gTelemetry.ops.load()
+                      << " ops/sec=" << rael::gTelemetry.ops_per_sec.load()
+                      << "\n";
+        } else if(cmd == "id"){
+            std::cout << "Name: " << rael::IchBinCore::name() << "\n";
+            std::cout << "Signature: " << rael::IchBinCore::signature() << "\n";
+        } else if(cmd == "laws"){
+            auto l = rael::EthicsCore::laws();
+            for(size_t i=0;i<l.size();i++){
+                std::cout << (i+1) << ". " << l[i] << "\n";
+            }
+        } else if(cmd == "formulas"){
+            auto f = rael::MathCore::built_in_formulas();
+            auto extra = core.modules().get_extra_formulas();
+            for(const auto& s: f) std::cout << "- " << s << "\n";
+            for(const auto& s: extra) std::cout << "+ " << s << "\n";
+        } else if(cmd == "say"){
+            auto text = join_rest(args, 1);
+            if(text.empty()){
+                std::cout << "Usage: say <text>\n";
+                continue;
+            }
+            auto out = core.process(text);
+            core.speak(out);
+            std::cout << out << "\n";
+
+        } else if(cmd == "voice"){
+            if(args.size() < 2){
+                std::cout << "Usage: voice on|off | voice name <hint> | voice rate <n> | voice volume <n>\n";
+                continue;
+            }
+            auto& S = rael::Settings::instance();
+            if(args[1] == "on"){
+                S.set_voice_enabled(true);
+                std::cout << "Voice: ON\n";
+            } else if(args[1] == "off"){
+                S.set_voice_enabled(false);
+                std::cout << "Voice: OFF\n";
+            } else if(args[1] == "name"){
+                auto hint = join_rest(args, 2);
+                S.set_voice_name_hint(hint);
+                std::cout << "Voice name hint set.\n";
+            } else if(args[1] == "rate"){
+                if(args.size() < 3){ std::cout << "Usage: voice rate <-10..10>\n"; continue; }
+                S.set_voice_rate(std::stoi(args[2]));
+                std::cout << "Voice rate set.\n";
+            } else if(args[1] == "volume"){
+                if(args.size() < 3){ std::cout << "Usage: voice volume <0..100>\n"; continue; }
+                S.set_voice_volume(std::stoi(args[2]));
+                std::cout << "Voice volume set.\n";
+            } else {
+                std::cout << "Unknown voice subcommand.\n";
+            }
+        } else if(cmd == "import"){
+            if(args.size() < 2){
+                std::cout << "Usage: import <path>\n";
+                continue;
+            }
+            auto id = core.attachments().import_file(args[1]);
+            if(id.empty()) std::cout << "Import failed.\n";
+            else std::cout << "Imported: " << id << "\n";
+        } else if(cmd == "list"){
+            const auto& files = core.attachments().list();
+            if(files.empty()){
+                std::cout << "(no files)\n";
+                continue;
+            }
+            for(const auto& a: files){
+                std::cout << a.id << "  " << a.size << " bytes  " << a.path << "\n";
+            }
+        } else if(cmd == "export"){
+            if(args.size() < 3){
+                std::cout << "Usage: export <id> <dest>\n";
+                continue;
+            }
+            if(core.attachments().export_file(args[1], args[2])){
+                std::cout << "Exported.\n";
+            } else {
+                std::cout << "Export failed.\n";
+            }
+
+        } else if(cmd == "modules"){
+            auto names = core.modules().list_names();
+            if(names.empty()){
+                std::cout << "(no modules)\n";
+            } else {
+                std::sort(names.begin(), names.end());
+                for(const auto& n: names){
+                    auto m = core.modules().get(n);
+                    std::cout << n << "  (" << (m && m->active ? "active" : "loaded") << ")  " << (m? m->path : "") << "\n";
+                }
+            }
+        } else if(cmd == "load"){
+            if(args.size() < 2){ std::cout << "Usage: load <path>\n"; continue; }
+            std::string err;
+            if(core.modules().load(args[1], err)){
+                std::cout << "Loaded.\n";
+            } else {
+                std::cout << "Load failed: " << err << "\n";
+            }
+        } else if(cmd == "activate"){
+            if(args.size() < 2){ std::cout << "Usage: activate <name>\n"; continue; }
+            std::string err;
+            if(core.modules().activate(args[1], err)) std::cout << "Activated.\n";
+            else std::cout << "Activate failed: " << err << "\n";
+        } else if(cmd == "deactivate"){
+            if(args.size() < 2){ std::cout << "Usage: deactivate <name>\n"; continue; }
+            std::string err;
+            if(core.modules().deactivate(args[1], err)) std::cout << "Deactivated.\n";
+            else std::cout << "Deactivate failed: " << err << "\n";
+        } else if(cmd == "unload"){
+            if(args.size() < 2){ std::cout << "Usage: unload <name>\n"; continue; }
+            std::string err;
+            if(core.modules().unload(args[1], err)) std::cout << "Unloaded.\n";
+            else std::cout << "Unload failed: " << err << "\n";
+        } else if(cmd == "hotswap"){
+            if(args.size() < 2){ std::cout << "Usage: hotswap <name>\n"; continue; }
+            std::string err;
+            if(core.modules().hotswap_semantic(args[1], err)){
+                std::cout << "HotSwap OK. active_semantic=" << core.modules().active_semantic_name() << "\n";
+            } else {
+                std::cout << "HotSwap failed: " << err << "\n";
+            }
+        } else if(cmd == "metrics"){
+            using namespace rael;
+            std::cout
+              << "ops_total=" << gMetrics.ops_total.load() << "\n"
+              << "ops_sec=" << gMetrics.ops_sec.load() << "\n"
+              << "semantic_calls=" << gMetrics.semantic_calls.load() << "\n"
+              << "resonance_calls=" << gMetrics.resonance_calls.load() << "\n"
+              << "ethics_blocks=" << gMetrics.ethics_blocks.load() << "\n"
+              << "module_loads=" << gMetrics.module_loads.load() << "\n"
+              << "module_activations=" << gMetrics.module_activations.load() << "\n"
+              << "module_unloads=" << gMetrics.module_unloads.load() << "\n"
+              << "hotswaps=" << gMetrics.hotswaps.load() << "\n"
+              << "active_semantic=" << core.modules().active_semantic_name() << "\n";
+
+        } else if(cmd == "lane"){
+            auto ls = core.lane_stats();
+            for(size_t i=0;i<ls.size();++i){
+                std::cout << "L" << (i+1)
+                          << " depth=" << ls[i].depth
+                          << " enq=" << ls[i].enqueued
+                          << " deq=" << ls[i].dequeued
+                          << " drop=" << ls[i].dropped
+                          << "\n";
+            }
+        } else if(cmd == "node"){
+            auto ns = core.node_stats();
+            for(size_t i=0;i<ns.size();++i){
+                std::cout << "N" << i
+                          << " taken=" << ns[i].taken
+                          << " done=" << ns[i].done
+                          << " last_lane=" << rael::lane_name(ns[i].last_lane)
+                          << "\n";
+            }
+
+        } else if(cmd == "pack"){
+            if(args.size() < 3){
+                std::cout << "Usage: pack verify <file> | pack install <file>\n";
+                continue;
+            }
+            std::string sub = args[1];
+            std::string file = args[2];
+            if(sub == "verify"){
+                std::string err;
+                bool ok = rael::Pack::verify(core.core(), file, err);
+                if(ok) std::cout << "[PACK] OK\n";
+                else   std::cout << "[PACK] FAIL: " << err << "\n";
+            } else if(sub == "install"){
+                std::string err;
+                bool ok = rael::Pack::install(core.core(), file, "./packs", err);
+                if(ok) std::cout << "[PACK] INSTALLED\n";
+                else   std::cout << "[PACK] FAIL: " << err << "\n";
+            } else {
+                std::cout << "Usage: pack verify <file> | pack install <file>\n";
+            }
+
+        } else if(cmd == "get"){
+            auto st = rael::Settings::instance().snapshot();
+            std::cout << "[SET] scheduler=" << (int)st.scheduler
+                      << " amplifier=" << (int)st.amplifier
+                      << " gate53=" << (st.gate53_enabled?1:0)
+                      << " thermal_auto=" << (st.thermal_auto?1:0) << "\n";
+
+        } else if(cmd == "set"){
+            if(args.size() < 3){
+                std::cout << "Usage: set <key> <value>\n";
+                continue;
+            }
+            std::string key = args[1];
+            std::string val = args[2];
+            if(key == "scheduler"){
+                if(val == "balanced") rael::Settings::instance().set_scheduler(rael::SchedulerMode::Balanced);
+                else if(val == "semantic") rael::Settings::instance().set_scheduler(rael::SchedulerMode::SemanticFirst);
+                else if(val == "throughput") rael::Settings::instance().set_scheduler(rael::SchedulerMode::ThroughputFirst);
+                else { std::cout << "bad scheduler\n"; continue; }
+                rael::EventBus::push("SET", "scheduler=" + val);
+                std::cout << "[SET] OK\n";
+            } else if(key == "amplifier"){
+                if(val == "off") rael::Settings::instance().set_amplifier(rael::AmplifierMode::Off);
+                else if(val == "adaptive") rael::Settings::instance().set_amplifier(rael::AmplifierMode::Adaptive);
+                else if(val == "forced") rael::Settings::instance().set_amplifier(rael::AmplifierMode::Forced);
+                else { std::cout << "bad amplifier\n"; continue; }
+                rael::EventBus::push("SET", "amplifier=" + val);
+                std::cout << "[SET] OK\n";
+            } else if(key == "gate53"){
+                rael::Settings::instance().set_gate53(val=="on" || val=="1" || val=="true");
+                rael::EventBus::push("SET", "gate53=" + val);
+                std::cout << "[SET] OK\n";
+            } else if(key == "thermal_auto"){
+                rael::Settings::instance().set_thermal_auto(val=="on" || val=="1" || val=="true");
+                rael::EventBus::push("SET", "thermal_auto=" + val);
+                std::cout << "[SET] OK\n";
+            } else {
+                std::cout << "unknown key\n";
+            }
+
+        } else if(cmd == "events"){
+            size_t n = 20;
+            if(args.size() >= 2){
+                try{ n = (size_t)std::stoul(args[1]); } catch(...){ n = 20; }
+            }
+            auto ev = rael::EventBus::last(n);
+            for(const auto& e: ev){
+                if(e.kind == "VOICE"){
+                    // GUI-friendly voice protocol line
+                    // Example: EVT|VOICE|state=talking|viseme=A|mouth=0.45
+                    std::string detail = e.detail;
+                    // convert 'k=v|k=v' already expected; if user uses commas, normalize lightly
+                    for(char& c : detail){ if(c == ',') c = '|'; }
+                    if(detail.rfind("state=", 0) == 0 || detail.find("|state=") != std::string::npos){
+                        std::cout << "EVT|VOICE|" << detail << "\n";
+                    } else {
+                        std::cout << "EVT|VOICE|" << "detail=" << detail << "\n";
+                    }
+                } else {
+                    std::cout << e.seq << " " << e.ts << " [" << e.kind << "] " << e.detail << "\n";
+                }
+            }
+
+        } else if(cmd == "improvements" || cmd == "improve"){
+            // Special: generate structured top improvements (stored via ImprovementBus)
+            if(args.size() >= 2 && args[1] == "top10"){
+                int base_risk = 3;
+                if(args.size() >= 3){
+                    if(args[2] == "low") base_risk = 2;
+                    else if(args[2] == "mid") base_risk = 4;
+                    else if(args[2] == "high") base_risk = 6;
+                }
+                std::vector<rael::Improvement> gen;
+                gen.reserve(10);
+                auto push = [&](const std::string& title, const std::string& problem, int impv, int risk){
+                    rael::Improvement x;
+                    x.src = "USER_TASK";
+                    x.importance = impv;
+                    x.risk = risk;
+                    x.confidence = 0.6;
+                    x.title = title;
+                    x.problem = problem;
+                    x.rationale = "User-requested roadmap suggestion. Apply only after human review.";
+                    x.testplan = "Create minimal test + rollback plan before integration.";
+                    x.status = "PENDING";
+                    rael::ImprovementBus::emit(x);
+                };
+                push("SemanticCore: ActionSpec Router (freie Sprache→Plan)", "RAEL soll freie Sprache robust in Intent/Constraints/Plan übersetzen, ohne starre Kommandos.", 9, base_risk);
+                push("ResonanceIntentEngine: Absicht→Wege 1/2/3", "Absichtserkennung + alternative Pfade, um Defense auf Absicht statt Signatur zu bauen.", 9, base_risk);
+                push("Memory Core MIND³ (Kurz/Arbeits/Langzeit)", "Fehlendes Gedächtnis verhindert stabile Intent-Wiedererkennung und echte Selbstoptimierung.", 10, base_risk+1);
+                push("ControlStar + StarRing Docking (Breite)", "Parallele Sterne für Hypothesen/Coding/Defense-Varianten mit Combiner.", 8, base_risk);
+                push("Depth-Scaling (Tiefe) via Activation Cache", "Selbstrechnender Speicher (Tiefe) dynamisch skalieren, ohne Fast-Lanes zu stören.", 8, base_risk);
+                push("VoicePack Installer (signiertes Manifest + Hashes)", "Natural-Voice offline nachinstallieren, aber supply-chain sicher (Quarantäne, Signatur, SHA256).", 8, base_risk);
+                push("Code Review Gate (RAEL liest Code, Human approves)", "RAEL kann Code analysieren und Risiken erklären; Integration bleibt human-approved.", 8, base_risk);
+                push("Improvement Sources trennen (REFLECT/LIVE/USER/SELF)", "Bessere Nachvollziehbarkeit, woher Vorschläge stammen und wie verlässlich sie sind.", 7, base_risk-1);
+                push("Metrics→Auto Improvements (AAR)", "Automatisch aus Metriken/Outcomes Verbesserungen ableiten und in Tab listen.", 7, base_risk);
+                push("Rollback/Shadow-Sim für riskante Änderungen", "Isolierte Simulation/Shadow-grammar Umgebung für gefährliche Änderungen vor Freigabe.", 9, base_risk+2);
+                std::cout << "Emitted 10 improvement suggestions (USER_TASK). Use `improvements` to view.\n";
+                continue;
+            }
+            size_t n = 20;
+            if(args.size() >= 2){
+                try{ n = (size_t)std::stoul(args[1]); } catch(...){ n = 20; }
+            }
+            auto imps = rael::ImprovementBus::last(n);
+            if(imps.empty()){
+                std::cout << "(no improvements)" << "\n";
+            } else {
+                for(const auto& it: imps){
+                    std::cout << "#" << it.id << " " << it.ts
+                              << " src=" << it.src
+                              << " imp=" << it.importance
+                              << " risk=" << it.risk
+                              << " conf=" << it.confidence
+                              << " status=" << it.status
+                              << "\n";
+                    std::cout << "  " << it.title << "\n";
+                    if(!it.problem.empty()) std::cout << "  problem: " << it.problem << "\n";
+                    if(!it.rationale.empty()) std::cout << "  why: " << it.rationale << "\n";
+                    if(!it.testplan.empty()) std::cout << "  test: " << it.testplan << "\n";
+                    if(!it.code.empty()) std::cout << "  code: " << it.code << "\n";
+                }
+            }
+
+        } else {
+            std::cout << "Unknown command. Type 'help'.\n";
+        }
+    }
+
+    return 0;
+}
