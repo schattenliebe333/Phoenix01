@@ -35,6 +35,11 @@ RaelCore::RaelCore(){
     aether_.ensure_channel(12); // ethics allow(1)/block(0)
     aether_.ensure_channel(13); // ops/sec proxy
     aether_.publish(13, (double)gTelemetry.ops_per_sec.load(), AetherScale::G1_Reflex);
+
+    // V49 QUINT System initialisieren
+    quint_.init();
+    aether_.ensure_channel(49); // quint global phi
+    EventBus::push("QUINT_INIT_OK", "V49 QUINT System aktiv");
 }
 
 RaelCore::~RaelCore(){
@@ -70,6 +75,11 @@ std::string RaelCore::process(const std::string& input){
     metrics_mark_semantic();
     auto s = sem.interpret(transformed);
     aether_.publish(10, s.coherence, AetherScale::G3_Emotion);
+
+    // V49 QUINT: Schild-Prüfung und Frequenz-Verarbeitung
+    quint_.step(s.coherence, s.coherence);
+    aether_.publish(49, quint_.global_phi(), AetherScale::G5_Spirit);
+
     metrics_mark_resonance();
     auto r = res.evaluate(s);
     aether_.publish(11, r.coupling, AetherScale::G4_Ratio);
@@ -160,6 +170,11 @@ std::string RaelCore::process_payload(const std::string& payload){
     metrics_mark_semantic();
     auto s = sem.interpret(transformed);
     aether_.publish(10, s.coherence, AetherScale::G3_Emotion);
+
+    // V49 QUINT: Schild-Prüfung und Frequenz-Verarbeitung
+    quint_.step(s.coherence, s.coherence);
+    aether_.publish(49, quint_.global_phi(), AetherScale::G5_Spirit);
+
     metrics_mark_resonance();
     auto r = res.evaluate(s);
     aether_.publish(11, r.coupling, AetherScale::G4_Ratio);

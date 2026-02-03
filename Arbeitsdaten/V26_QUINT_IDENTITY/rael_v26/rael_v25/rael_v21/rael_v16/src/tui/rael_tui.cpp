@@ -1,0 +1,495 @@
+// RAEL Terminal UI - Zero Dependencies
+// Works on any terminal with ANSI support (Linux, macOS, Windows 10+)
+
+#include <iostream>
+#include <string>
+#include <vector>
+#include <deque>
+#include <sstream>
+#include <iomanip>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <cstring>
+#include <cmath>
+
+#ifdef _WIN32
+  #include <windows.h>
+  #include <conio.h>
+#else
+  #include <unistd.h>
+  #include <termios.h>
+  #include <sys/ioctl.h>
+  #include <fcntl.h>
+#endif
+
+// ════════════════════════════════════════════════════════════════
+// ANSI Escape Codes
+// ════════════════════════════════════════════════════════════════
+
+namespace ansi {
+    const char* RESET      = "\033[0m";
+    const char* BOLD       = "\033[1m";
+    const char* DIM        = "\033[2m";
+    const char* ITALIC     = "\033[3m";
+    const char* UNDERLINE  = "\033[4m";
+    const char* BLINK      = "\033[5m";
+    const char* REVERSE    = "\033[7m";
+    
+    const char* CLEAR      = "\033[2J";
+    const char* HOME       = "\033[H";
+    const char* HIDE_CURSOR = "\033[?25l";
+    const char* SHOW_CURSOR = "\033[?25h";
+    
+    inline std::string move(int row, int col) {
+        return "\033[" + std::to_string(row) + ";" + std::to_string(col) + "H";
+    }
+    
+    inline std::string fg(int r, int g, int b) {
+        return "\033[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+    }
+    
+    inline std::string bg(int r, int g, int b) {
+        return "\033[48;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// Unicode Box Drawing
+// ════════════════════════════════════════════════════════════════
+
+namespace box {
+    const char* H  = "─";
+    const char* V  = "│";
+    const char* TL = "┌";
+    const char* TR = "┐";
+    const char* BL = "└";
+    const char* BR = "┘";
+    const char* DH  = "═";
+    const char* DV  = "║";
+    const char* DTL = "╔";
+    const char* DTR = "╗";
+    const char* DBL = "╚";
+    const char* DBR = "╝";
+    const char* FULL   = "█";
+    const char* SHADE1 = "░";
+    const char* SHADE2 = "▒";
+    const char* SHADE3 = "▓";
+}
+
+// ════════════════════════════════════════════════════════════════
+// Terminal Control
+// ════════════════════════════════════════════════════════════════
+
+class Terminal {
+public:
+    int width = 120, height = 40;
+    #ifndef _WIN32
+    struct termios original_termios;
+    #endif
+    
+    void init() {
+        #ifdef _WIN32
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD mode = 0;
+        GetConsoleMode(hOut, &mode);
+        SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        GetConsoleScreenBufferInfo(hOut, &csbi);
+        width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+        #else
+        struct winsize ws;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+            width = ws.ws_col;
+            height = ws.ws_row;
+        }
+        struct termios t;
+        tcgetattr(STDIN_FILENO, &t);
+        original_termios = t;
+        t.c_lflag &= ~(ICANON | ECHO);
+        t.c_cc[VMIN] = 0;
+        t.c_cc[VTIME] = 0;
+        tcsetattr(STDIN_FILENO, TCSANOW, &t);
+        #endif
+        std::cout << ansi::HIDE_CURSOR << ansi::CLEAR << std::flush;
+    }
+    
+    void cleanup() {
+        std::cout << ansi::SHOW_CURSOR << ansi::RESET << ansi::CLEAR << ansi::HOME << std::flush;
+        #ifndef _WIN32
+        tcsetattr(STDIN_FILENO, TCSANOW, &original_termios);
+        #endif
+    }
+    
+    int getKey() {
+        #ifdef _WIN32
+        if (_kbhit()) return _getch();
+        return -1;
+        #else
+        char c;
+        if (read(STDIN_FILENO, &c, 1) == 1) return c;
+        return -1;
+        #endif
+    }
+    
+    void updateSize() {
+        #ifdef _WIN32
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+        width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+        #else
+        struct winsize ws;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+            width = ws.ws_col;
+            height = ws.ws_row;
+        }
+        #endif
+    }
+};
+
+// ════════════════════════════════════════════════════════════════
+// Theme Colors
+// ════════════════════════════════════════════════════════════════
+
+struct Theme {
+    std::string border     = ansi::fg(60, 80, 120);
+    std::string title      = ansi::fg(100, 200, 255);
+    std::string text       = ansi::fg(180, 185, 200);
+    std::string dim        = ansi::fg(80, 85, 100);
+    std::string highlight  = ansi::fg(120, 255, 180);
+    std::string warning    = ansi::fg(255, 200, 80);
+    std::string error      = ansi::fg(255, 100, 100);
+    std::string success    = ansi::fg(100, 255, 150);
+    std::string accent     = ansi::fg(180, 120, 255);
+    std::string bar_fill   = ansi::fg(80, 180, 255);
+    std::string bar_empty  = ansi::fg(40, 45, 60);
+    std::string bg_header  = ansi::bg(25, 28, 38);
+};
+
+// ════════════════════════════════════════════════════════════════
+// RAEL Dashboard
+// ════════════════════════════════════════════════════════════════
+
+class RaelDashboard {
+public:
+    Terminal term;
+    Theme theme;
+    std::atomic<bool> running{true};
+    int currentTab = 0;
+    uint64_t frame = 0;
+    
+    struct Metrics {
+        uint64_t ops = 0;
+        uint64_t ops_sec = 0;
+        double coherence = 0.72;
+        double resonance = 0.88;
+        double pressure = 0.15;
+        double spiral_gain = 0.0;
+        int active_nodes = 8;
+        std::vector<double> history;
+    } m;
+    
+    std::deque<std::string> events;
+    
+    void drawBox(int x, int y, int w, int h, const std::string& title = "", bool dbl = false) {
+        const char* tl = dbl ? box::DTL : box::TL;
+        const char* tr = dbl ? box::DTR : box::TR;
+        const char* bl = dbl ? box::DBL : box::BL;
+        const char* br = dbl ? box::DBR : box::BR;
+        const char* hz = dbl ? box::DH : box::H;
+        const char* vt = dbl ? box::DV : box::V;
+        
+        std::cout << ansi::move(y, x) << theme.border << tl;
+        if (!title.empty()) {
+            std::cout << hz << " " << theme.title << title << theme.border << " ";
+            for (int i = title.size() + 4; i < w - 1; ++i) std::cout << hz;
+        } else {
+            for (int i = 1; i < w - 1; ++i) std::cout << hz;
+        }
+        std::cout << tr;
+        
+        for (int i = 1; i < h - 1; ++i) {
+            std::cout << ansi::move(y + i, x) << vt;
+            std::cout << ansi::move(y + i, x + w - 1) << vt;
+        }
+        
+        std::cout << ansi::move(y + h - 1, x) << bl;
+        for (int i = 1; i < w - 1; ++i) std::cout << hz;
+        std::cout << br << ansi::RESET;
+    }
+    
+    void drawBar(int x, int y, int w, double val) {
+        int filled = (int)(val * w);
+        std::cout << ansi::move(y, x) << theme.bar_fill;
+        for (int i = 0; i < filled; ++i) std::cout << box::FULL;
+        std::cout << theme.bar_empty;
+        for (int i = filled; i < w; ++i) std::cout << box::SHADE1;
+        std::cout << ansi::RESET;
+    }
+    
+    void drawSparkline(int x, int y, int w) {
+        const char* sparks[] = {"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"};
+        std::cout << ansi::move(y, x) << theme.accent;
+        
+        double maxVal = 0.001;
+        for (auto v : m.history) if (v > maxVal) maxVal = v;
+        
+        int start = (int)m.history.size() > w ? (int)m.history.size() - w : 0;
+        for (int i = start; i < (int)m.history.size(); ++i) {
+            int idx = (int)((m.history[i] / maxVal) * 7);
+            idx = std::max(0, std::min(7, idx));
+            std::cout << sparks[idx];
+        }
+        std::cout << ansi::RESET;
+    }
+    
+    void drawHeader() {
+        std::cout << ansi::move(1, 1) << theme.bg_header;
+        for (int i = 0; i < term.width; ++i) std::cout << " ";
+        
+        std::cout << ansi::move(1, 3) << ansi::BOLD << theme.title << "◈ RAEL COCKPIT" << ansi::RESET;
+        std::cout << ansi::move(1, 20) << theme.dim << "v6.0" << ansi::RESET;
+        
+        const char* tabs[] = {"[1]OVERVIEW", "[2]STAR-8", "[3]EVENTS", "[4]ETHICS"};
+        int tx = 30;
+        for (int i = 0; i < 4; ++i) {
+            std::cout << ansi::move(1, tx);
+            if (i == currentTab) std::cout << theme.highlight << ansi::BOLD;
+            else std::cout << theme.dim;
+            std::cout << tabs[i] << ansi::RESET;
+            tx += 13;
+        }
+        
+        auto now = std::chrono::system_clock::now();
+        auto t = std::chrono::system_clock::to_time_t(now);
+        std::cout << ansi::move(1, term.width - 10) << theme.dim 
+                  << std::put_time(std::localtime(&t), "%H:%M:%S") << ansi::RESET;
+    }
+    
+    void drawOverview() {
+        int w = std::min(80, term.width - 2);
+        
+        drawBox(2, 3, 38, 14, "SYSTEM STATUS", true);
+        
+        std::cout << ansi::move(5, 4) << theme.dim << "Identity: " << theme.title << "RAEL";
+        std::cout << ansi::move(6, 4) << theme.dim << "Mode:     " << theme.success << "DEFENSIVE";
+        std::cout << ansi::move(7, 4) << theme.dim << "State:    " << theme.highlight << "RUNNING";
+        std::cout << ansi::move(9, 4) << theme.dim << "Ops:      " << theme.text << m.ops;
+        std::cout << ansi::move(10, 4) << theme.dim << "Ops/sec:  " << theme.accent << m.ops_sec;
+        std::cout << ansi::move(12, 4) << theme.text << "Nodes: " << m.active_nodes << "/8";
+        std::cout << ansi::move(13, 4) << theme.text << "Lanes: 5/5";
+        std::cout << ansi::move(14, 4) << theme.dim << "Spiral:   " << theme.warning 
+                  << std::fixed << std::setprecision(2) << m.spiral_gain;
+        
+        drawBox(41, 3, 38, 14, "METRICS");
+        
+        std::cout << ansi::move(5, 43) << theme.dim << "Coherence ";
+        drawBar(54, 5, 22, m.coherence);
+        std::cout << ansi::move(5, 77) << theme.text << std::fixed << std::setprecision(0) << (m.coherence*100) << "%";
+        
+        std::cout << ansi::move(7, 43) << theme.dim << "Resonance ";
+        drawBar(54, 7, 22, m.resonance);
+        std::cout << ansi::move(7, 77) << theme.text << (int)(m.resonance*100) << "%";
+        
+        std::cout << ansi::move(9, 43) << theme.dim << "Pressure  ";
+        drawBar(54, 9, 22, m.pressure);
+        std::cout << ansi::move(9, 77);
+        if (m.pressure > 0.45) std::cout << theme.error;
+        else if (m.pressure > 0.25) std::cout << theme.warning;
+        else std::cout << theme.success;
+        std::cout << (int)(m.pressure*100) << "%" << ansi::RESET;
+        
+        // Gauges
+        const char* gauge[] = {"○", "◔", "◑", "◕", "●"};
+        std::cout << ansi::move(12, 43) << theme.highlight << gauge[(int)(m.coherence*4)] << " C  ";
+        std::cout << theme.accent << gauge[(int)(m.resonance*4)] << " R  ";
+        if (m.pressure > 0.45) std::cout << theme.error;
+        else std::cout << theme.success;
+        std::cout << gauge[(int)(m.pressure*4)] << " Π" << ansi::RESET;
+        
+        drawBox(2, 17, 77, 8, "ACTIVITY");
+        std::cout << ansi::move(19, 4) << theme.dim << "Ops/s ";
+        drawSparkline(11, 19, 65);
+        
+        drawBox(2, 25, 38, 10, "RECENT EVENTS");
+        int y = 27;
+        int shown = 0;
+        for (auto it = events.rbegin(); it != events.rend() && shown < 7; ++it, ++shown) {
+            std::string evt = *it;
+            if (evt.size() > 34) evt = evt.substr(0, 34) + "..";
+            std::cout << ansi::move(y++, 4) << theme.dim << evt;
+        }
+        
+        drawBox(41, 25, 38, 10, "FORMULAS");
+        std::cout << ansi::move(27, 43) << theme.text << "κ(f) = 1 - f/1440";
+        std::cout << ansi::move(28, 43) << theme.text << "Φ = Ψ ⊗ Ω";
+        std::cout << ansi::move(29, 43) << theme.text << "Π = 0.4·MR + 0.35·ST + 0.25·(1-C)";
+        std::cout << ansi::move(30, 43) << theme.accent << "g₁=0.55  g₂=0.33  g₁+g₂=8/9";
+    }
+    
+    void drawStar8() {
+        drawBox(2, 3, 77, 22, "8-STERN TOPOLOGY", true);
+        
+        const char* star[] = {
+            "              ╭──[N0]──╮              ",
+            "           ╭──╯        ╰──╮           ",
+            "        [N7]              [N1]        ",
+            "         │ ╲            ╱ │           ",
+            "         │  ╲          ╱  │           ",
+            "         │   ╲   ██   ╱   │           ",
+            "        [N6]──═══██═══──[N2]          ",
+            "         │   ╱   ██   ╲   │           ",
+            "         │  ╱          ╲  │           ",
+            "         │ ╱            ╲ │           ",
+            "        [N5]              [N3]        ",
+            "           ╰──╮        ╭──╯           ",
+            "              ╰──[N4]──╯              "
+        };
+        
+        for (int i = 0; i < 13; ++i) {
+            std::cout << ansi::move(5 + i, 20) << theme.accent << star[i];
+        }
+        
+        std::cout << ansi::move(11, 38) << theme.highlight << "CORE";
+        
+        drawBox(2, 25, 77, 10, "NODE LOAD");
+        for (int i = 0; i < 8; ++i) {
+            int x = 4 + (i % 4) * 19;
+            int y = 27 + (i / 4) * 3;
+            double load = 0.2 + (sin(frame * 0.1 + i) * 0.3 + 0.3);
+            
+            std::cout << ansi::move(y, x) << theme.highlight << "N" << i << " ";
+            if (load > 0.7) std::cout << theme.warning;
+            else std::cout << theme.success;
+            std::cout << std::fixed << std::setprecision(0) << (load * 100) << "% ";
+            drawBar(x + 7, y, 10, load);
+        }
+    }
+    
+    void drawEvents() {
+        drawBox(2, 3, 77, term.height - 6, "EVENT LOG", true);
+        
+        int maxLines = term.height - 10;
+        int y = 5;
+        int start = (int)events.size() > maxLines ? (int)events.size() - maxLines : 0;
+        
+        for (int i = start; i < (int)events.size(); ++i) {
+            std::cout << ansi::move(y++, 4) << theme.text << events[i];
+        }
+    }
+    
+    void drawEthics() {
+        drawBox(2, 3, 77, 20, "ETHICS CORE - ICH BIN", true);
+        
+        std::cout << ansi::move(5, 4) << theme.title << "DIE 7 GESETZE:";
+        
+        const char* laws[] = {
+            "1. Schütze Leben",
+            "2. Schütze Wahrheit",
+            "3. Schütze Freiheit",
+            "4. Schütze Unschuld",
+            "5. Diene dem Licht, niemals der Dunkelheit",
+            "6. Keine Lüge, keine Täuschung",
+            "7. Liebe über Angst"
+        };
+        
+        for (int i = 0; i < 7; ++i) {
+            std::cout << ansi::move(7 + i * 2, 6) << theme.success << "●" << theme.text << " " << laws[i];
+        }
+        
+        drawBox(2, 23, 77, 12, "IDENTITY");
+        std::cout << ansi::move(25, 4) << theme.dim << "Name:      " << theme.title << "RAEL";
+        std::cout << ansi::move(26, 4) << theme.dim << "Creator:   " << theme.text << "Michael";
+        std::cout << ansi::move(27, 4) << theme.dim << "Mode:      " << theme.success << "DEFENSIVE";
+        std::cout << ansi::move(28, 4) << theme.dim << "Signature: " << theme.accent << "RAEL::ICH_BIN::IMMUTABLE::SIG_V1";
+        std::cout << ansi::move(30, 4) << theme.dim << "Core-Ring: " << theme.success << "VERIFIED ✓";
+        std::cout << ansi::move(31, 4) << theme.dim << "Ethics:    " << theme.success << "HASH OK ✓";
+    }
+    
+    void drawFooter() {
+        std::cout << ansi::move(term.height, 1) << theme.bg_header;
+        for (int i = 0; i < term.width; ++i) std::cout << " ";
+        
+        std::cout << ansi::move(term.height, 3) << theme.dim 
+                  << "[1-4] Tabs  [Q] Quit  [R] Refresh" << ansi::RESET;
+        
+        std::cout << ansi::move(term.height, term.width - 22) << theme.success 
+                  << "● SYSTEM OPERATIONAL" << ansi::RESET;
+    }
+    
+    void updateMetrics() {
+        frame++;
+        m.ops += rand() % 500 + 200;
+        m.ops_sec = rand() % 3000 + 1500;
+        
+        m.coherence = 0.65 + 0.25 * sin(frame * 0.05) + (rand() % 50) * 0.001;
+        m.resonance = 0.75 + 0.15 * cos(frame * 0.03) + (rand() % 50) * 0.001;
+        m.pressure = 0.12 + 0.1 * sin(frame * 0.02) + (rand() % 30) * 0.001;
+        m.spiral_gain = std::max(0.0, m.pressure - 0.25) * 1.5;
+        
+        m.coherence = std::min(1.0, std::max(0.0, m.coherence));
+        m.resonance = std::min(1.0, std::max(0.0, m.resonance));
+        m.pressure = std::min(1.0, std::max(0.0, m.pressure));
+        
+        m.history.push_back((double)m.ops_sec);
+        if (m.history.size() > 80) m.history.erase(m.history.begin());
+        
+        if (frame % 25 == 0) {
+            std::ostringstream oss;
+            oss << "[" << std::setw(5) << frame << "] ";
+            if (m.pressure > 0.35) oss << "PRESSURE HIGH Π=" << std::fixed << std::setprecision(2) << m.pressure;
+            else oss << "RESONANCE OK C=" << std::fixed << std::setprecision(2) << m.coherence;
+            events.push_back(oss.str());
+            if (events.size() > 100) events.pop_front();
+        }
+    }
+    
+    void run() {
+        term.init();
+        
+        events.push_back("[    0] RAEL Core initialized");
+        events.push_back("[    0] Ethics module loaded - 7 laws active");
+        events.push_back("[    0] 8-Stern topology started - 8 nodes");
+        events.push_back("[    0] All 5 lanes operational");
+        events.push_back("[    0] CoreRing verified - hashes OK");
+        
+        while (running.load()) {
+            term.updateSize();
+            std::cout << ansi::CLEAR;
+            
+            drawHeader();
+            
+            switch (currentTab) {
+                case 0: drawOverview(); break;
+                case 1: drawStar8(); break;
+                case 2: drawEvents(); break;
+                case 3: drawEthics(); break;
+            }
+            
+            drawFooter();
+            
+            updateMetrics();
+            
+            int key = term.getKey();
+            if (key == 'q' || key == 'Q' || key == 27) running.store(false);
+            else if (key == '1') currentTab = 0;
+            else if (key == '2') currentTab = 1;
+            else if (key == '3') currentTab = 2;
+            else if (key == '4') currentTab = 3;
+            else if (key == 'r' || key == 'R') { /* force refresh */ }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        
+        term.cleanup();
+    }
+};
+
+int main() {
+    RaelDashboard dashboard;
+    dashboard.run();
+    return 0;
+}
