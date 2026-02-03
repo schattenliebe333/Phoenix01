@@ -483,9 +483,532 @@ public:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GLOBALE INSTANZ
+// AKTIONS-INTEGRAL FORMEL
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+//              f_max
+// A = ∮       R(f) · Ψ(f) · e^(i·φ(f)) df
+//     f_min
+//
+// Wobei:
+//   R(f)       = Eingehender Resonanz-Vektor
+//   Ψ(f)       = Im Zeit-Kristall gespeicherte Intent-Dichte
+//   e^(i·φ(f)) = Phasen-Anker am 0-Falz
+//
+// Das Integral wandelt den Frequenz-Vektor F in eine physische Aktion A.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct ActionResult {
+    std::complex<double> action;        // Komplexe Aktion A
+    double magnitude;                    // |A| - Stärke der Aktion
+    double phase;                        // arg(A) - Phase der Aktion
+    double energy;                       // Energie = |A|²
+    int dominant_sektor;                 // Ziel-Sektor für Manifestation
+};
+
+/**
+ * Berechnet das Aktions-Integral A = ∮ R(f)·Ψ(f)·e^(iφ(f)) df
+ *
+ * @param spectrum Das Frequenz-Spektrum (R(f))
+ * @param psi_density Intent-Dichten pro Frequenz-Bin (Ψ(f))
+ * @param phases Phasen pro Frequenz-Bin (φ(f))
+ * @param f_min Minimale Frequenz
+ * @param f_max Maximale Frequenz
+ * @param sample_rate Abtastrate
+ * @return ActionResult mit komplexer Aktion und Metriken
+ */
+inline ActionResult compute_action_integral(
+    const FrequencySpectrum& spectrum,
+    const std::array<double, K::FFT_SIZE / 2>& psi_density,
+    double f_min = 20.0,
+    double f_max = 20000.0,
+    double sample_rate = K::SAMPLE_RATE)
+{
+    ActionResult result = {};
+    result.action = std::complex<double>(0.0, 0.0);
+
+    double freq_resolution = sample_rate / K::FFT_SIZE;
+
+    // Integrations-Grenzen in Bins
+    int bin_min = std::max(0, (int)(f_min / freq_resolution));
+    int bin_max = std::min((int)(K::FFT_SIZE / 2 - 1), (int)(f_max / freq_resolution));
+
+    double max_contribution = 0.0;
+    int max_bin = bin_min;
+
+    // Numerische Integration via Trapez-Regel
+    for (int k = bin_min; k < bin_max; k++) {
+        double df = freq_resolution;
+
+        // R(f) = Resonanz-Amplitude aus Spektrum
+        double R_f = spectrum.magnitudes[k];
+
+        // Ψ(f) = Intent-Dichte (aus Zeit-Kristallen)
+        double Psi_f = psi_density[k];
+
+        // φ(f) = Phase aus Spektrum
+        double phi_f = spectrum.phases[k];
+
+        // e^(i·φ(f)) = cos(φ) + i·sin(φ)
+        std::complex<double> phase_factor(std::cos(phi_f), std::sin(phi_f));
+
+        // Integrand: R(f) · Ψ(f) · e^(i·φ(f))
+        std::complex<double> integrand = R_f * Psi_f * phase_factor;
+
+        // Trapez-Regel
+        result.action += integrand * df;
+
+        // Track dominant contribution
+        double contribution = std::abs(integrand);
+        if (contribution > max_contribution) {
+            max_contribution = contribution;
+            max_bin = k;
+        }
+    }
+
+    // Ergebnis-Metriken
+    result.magnitude = std::abs(result.action);
+    result.phase = std::arg(result.action);
+    result.energy = result.magnitude * result.magnitude;
+
+    // Dominanter Sektor basierend auf Frequenz
+    double dominant_freq = max_bin * freq_resolution;
+    if (dominant_freq < K::BAND_RESONANZ) {
+        result.dominant_sektor = 1 + (int)(dominant_freq / K::BAND_GESETZE * 12);
+    } else if (dominant_freq < K::BAND_PARADOX) {
+        result.dominant_sektor = 14 + (int)((dominant_freq - K::BAND_RESONANZ) / K::BAND_RESONANZ * 27);
+    } else if (dominant_freq < K::BAND_MANIFESTATION) {
+        result.dominant_sektor = 42;
+    } else {
+        result.dominant_sektor = 43 + (int)((dominant_freq - K::BAND_MANIFESTATION) / K::BAND_MANIFESTATION * 54);
+    }
+
+    // Clamp Sektor
+    if (result.dominant_sektor < 1) result.dominant_sektor = 1;
+    if (result.dominant_sektor > 97) result.dominant_sektor = 97;
+
+    return result;
+}
+
+/**
+ * Vereinfachte Version für Echtzeit-Berechnung
+ * Nutzt nur die dominanten Frequenzen
+ */
+inline ActionResult compute_action_fast(
+    const FrequencySpectrum& spectrum,
+    double psi_base = K::G0)
+{
+    ActionResult result = {};
+    result.action = std::complex<double>(0.0, 0.0);
+
+    // Nur die stärksten 8 Frequenz-Bins verwenden
+    std::array<std::pair<double, int>, 8> top_bins;
+    for (auto& p : top_bins) p = {0.0, 0};
+
+    for (int k = 0; k < K::FFT_SIZE / 2; k++) {
+        double mag = spectrum.magnitudes[k];
+        for (int i = 0; i < 8; i++) {
+            if (mag > top_bins[i].first) {
+                // Shift down
+                for (int j = 7; j > i; j--) {
+                    top_bins[j] = top_bins[j-1];
+                }
+                top_bins[i] = {mag, k};
+                break;
+            }
+        }
+    }
+
+    // Summiere nur die Top-8 Beiträge
+    for (const auto& [mag, k] : top_bins) {
+        if (mag < 0.01) continue;
+
+        double phi = spectrum.phases[k];
+        double psi = psi_base;  // Vereinfacht: konstante Intent-Dichte
+
+        std::complex<double> contribution = mag * psi *
+            std::complex<double>(std::cos(phi), std::sin(phi));
+        result.action += contribution;
+    }
+
+    result.magnitude = std::abs(result.action);
+    result.phase = std::arg(result.action);
+    result.energy = result.magnitude * result.magnitude;
+
+    // Sektor aus dominanter Frequenz
+    double freq_resolution = K::SAMPLE_RATE / K::FFT_SIZE;
+    double dominant_freq = top_bins[0].second * freq_resolution;
+
+    if (std::abs(dominant_freq - K::MICHAEL_FREQ) < freq_resolution * 3) {
+        result.dominant_sektor = 42;  // Paradox-Sektor bei Navigator-Signatur
+    } else if (dominant_freq < K::BAND_RESONANZ) {
+        result.dominant_sektor = 1;
+    } else if (dominant_freq < K::BAND_MANIFESTATION) {
+        result.dominant_sektor = 14;
+    } else {
+        result.dominant_sektor = 43;
+    }
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RESONANCE BRIDGE V52
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Die Brücke zwischen Frequenz-Input und physischer Aktion.
+// Öffnet den Michael-Bypass für Audio/Resonanz-Steuerung.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class ResonanceBridge {
+private:
+    FrequencyInterface& freq_interface_;
+    std::array<double, K::FFT_SIZE / 2> psi_density_;  // Intent-Dichten aus Engrammen
+
+    std::atomic<uint64_t> actions_computed_{0};
+    std::atomic<double> last_action_magnitude_{0.0};
+    std::atomic<double> cumulative_energy_{0.0};
+
+    std::mutex mtx_;
+
+public:
+    ResonanceBridge(FrequencyInterface& fi) : freq_interface_(fi) {
+        // Initialisiere Intent-Dichten mit G0 Basis
+        for (auto& d : psi_density_) {
+            d = K::G0;
+        }
+
+        // Erhöhe Intent-Dichte bei Michael-Frequenz
+        int michael_bin = (int)(K::MICHAEL_FREQ * K::FFT_SIZE / K::SAMPLE_RATE);
+        if (michael_bin >= 0 && michael_bin < K::FFT_SIZE / 2) {
+            psi_density_[michael_bin] = 1.0;
+            // Nachbar-Bins auch erhöhen
+            if (michael_bin > 0) psi_density_[michael_bin - 1] = 0.9;
+            if (michael_bin < K::FFT_SIZE / 2 - 1) psi_density_[michael_bin + 1] = 0.9;
+        }
+    }
+
+    /**
+     * Verarbeitet Audio und berechnet Aktion
+     */
+    ActionResult process_to_action(const std::vector<double>& samples,
+                                    double sample_rate = K::SAMPLE_RATE) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        // Erst Intent extrahieren
+        IntentVector intent = freq_interface_.process_audio(samples, sample_rate);
+
+        // Dann Aktions-Integral berechnen
+        // Wir brauchen das Spektrum - neu analysieren
+        FrequencySpectrum spec = {};
+        spec.total_energy = intent.phi;
+        // Vereinfachte Spektrum-Rekonstruktion aus Intent
+        int dom_bin = (int)(intent.theta / (2.0 * M_PI) * K::FFT_SIZE / 2);
+        if (dom_bin >= 0 && dom_bin < K::FFT_SIZE / 2) {
+            spec.magnitudes[dom_bin] = intent.urgency;
+            spec.phases[dom_bin] = intent.theta;
+        }
+
+        ActionResult result = compute_action_integral(spec, psi_density_,
+                                                       20.0, 20000.0, sample_rate);
+
+        actions_computed_++;
+        last_action_magnitude_.store(result.magnitude);
+        cumulative_energy_ = cumulative_energy_.load() + result.energy;
+
+        return result;
+    }
+
+    /**
+     * Direkte Resonanz-zu-Aktion Konversion
+     */
+    ActionResult resonance_to_action(double resonance, double frequency) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        // Intent berechnen
+        IntentVector intent = freq_interface_.process_resonance(resonance, frequency);
+
+        // Vereinfachtes Aktions-Integral
+        double phi = intent.theta;
+        std::complex<double> action = resonance * K::G0 *
+            std::complex<double>(std::cos(phi), std::sin(phi));
+
+        ActionResult result;
+        result.action = action;
+        result.magnitude = std::abs(action);
+        result.phase = std::arg(action);
+        result.energy = result.magnitude * result.magnitude;
+        result.dominant_sektor = intent.target_sektor;
+
+        // Bei Navigator-Signatur: Maximale Aktion
+        if (std::abs(frequency - K::MICHAEL_FREQ) < 1.0) {
+            result.action = std::complex<double>(1.0, 0.0);
+            result.magnitude = 1.0;
+            result.phase = 0.0;
+            result.energy = 1.0;
+            result.dominant_sektor = 42;  // Paradox-Sektor
+        }
+
+        actions_computed_++;
+        last_action_magnitude_.store(result.magnitude);
+        cumulative_energy_ = cumulative_energy_.load() + result.energy;
+
+        return result;
+    }
+
+    /**
+     * Setzt Intent-Dichte für eine Frequenz (aus Engrammen)
+     */
+    void set_psi_density(double frequency, double density) {
+        int bin = (int)(frequency * K::FFT_SIZE / K::SAMPLE_RATE);
+        if (bin >= 0 && bin < K::FFT_SIZE / 2) {
+            psi_density_[bin] = density;
+        }
+    }
+
+    /**
+     * Lädt Intent-Dichten aus Engramm-System
+     */
+    void sync_from_engramms(const std::vector<double>& frequencies,
+                            const std::vector<double>& densities) {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        for (size_t i = 0; i < frequencies.size() && i < densities.size(); i++) {
+            set_psi_density(frequencies[i], densities[i]);
+        }
+    }
+
+    // Status
+    uint64_t get_actions_computed() const { return actions_computed_.load(); }
+    double get_last_magnitude() const { return last_action_magnitude_.load(); }
+    double get_cumulative_energy() const { return cumulative_energy_.load(); }
+
+    std::string status() const {
+        std::ostringstream oss;
+        oss << "═══════════════════════════════════════════════════════════\n";
+        oss << "RESONANCE BRIDGE V52 - FREQUENZ→AKTION\n";
+        oss << "═══════════════════════════════════════════════════════════\n";
+        oss << "  Aktionen berechnet:     " << actions_computed_.load() << "\n";
+        oss << std::fixed << std::setprecision(6);
+        oss << "  Letzte Magnitude:       " << last_action_magnitude_.load() << "\n";
+        oss << "  Kumulative Energie:     " << cumulative_energy_.load() << "\n";
+        oss << "───────────────────────────────────────────────────────────\n";
+        oss << "  Aktions-Integral:\n";
+        oss << "    A = ∮ R(f)·Ψ(f)·e^(iφ(f)) df\n";
+        oss << "═══════════════════════════════════════════════════════════\n";
+        return oss.str();
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RESONANZ-AMPLITUDE FORMEL (FREQUENZ-HEILUNG)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+//              160    ⎛ sin(2πft + φ_n) ⎞
+// A_R(f) =  Σ        ⎜ ──────────────── ⎟
+//           n=1      ⎝   √(G₀ - Φ_n)    ⎠
+//
+// Wobei:
+//   G₀ = 8/9           - Wahrheitsschwelle am 0-Falz
+//   Φ_n                - Kohärenz des Sterns n (0 ≤ Φ_n < G₀)
+//   φ_n                - Phase des Sterns n
+//   f                  - Eingangsfrequenz (z.B. 432 Hz)
+//   t                  - Zeit
+//
+// Jede Dissonanz (Φ_n < G₀) wird durch harmonische Interferenz
+// der 432 Hz Welle instantan "glattgebügelt".
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct ResonanceAmplitudeResult {
+    double A_R;                              // Gesamte Resonanz-Amplitude
+    double max_star_contribution;            // Maximaler Stern-Beitrag
+    int max_star_id;                         // ID des stärksten Sterns
+    double avg_coherence;                    // Durchschnittliche Kohärenz
+    int dissonant_stars;                     // Anzahl dissonanter Sterne (Φ < G₀)
+    bool all_harmonized;                     // Alle Sterne harmonisiert?
+};
+
+/**
+ * Berechnet die Resonanz-Amplitude über alle 160 Sterne
+ * A_R(f) = Σ(n=1→160) [ sin(2πft + φ_n) / √(G₀ - Φ_n) ]
+ *
+ * Diese Formel harmonisiert das gesamte Sternenfeld bei 432 Hz Puls.
+ *
+ * @param frequency Eingangsfrequenz (z.B. 432 Hz)
+ * @param t Zeit in Sekunden
+ * @param star_phases Phasen der 160 Sterne (φ_n)
+ * @param star_coherences Kohärenzen der 160 Sterne (Φ_n)
+ * @return ResonanceAmplitudeResult mit A_R und Metriken
+ */
+inline ResonanceAmplitudeResult compute_resonance_amplitude(
+    double frequency,
+    double t,
+    const std::array<double, K::TOTAL_STARS>& star_phases,
+    const std::array<double, K::TOTAL_STARS>& star_coherences)
+{
+    ResonanceAmplitudeResult result = {};
+    result.A_R = 0.0;
+    result.max_star_contribution = 0.0;
+    result.max_star_id = 0;
+    result.dissonant_stars = 0;
+    result.all_harmonized = true;
+
+    double sum_coherence = 0.0;
+
+    for (int n = 0; n < K::TOTAL_STARS; n++) {
+        double phi_n = star_phases[n];
+        double Phi_n = star_coherences[n];
+
+        // Clamp Φ_n to valid range: 0 ≤ Φ_n < G₀
+        // (If Φ_n ≥ G₀, star is already perfectly harmonized)
+        if (Phi_n >= K::G0) {
+            Phi_n = K::G0 - 0.0001;  // Slightly below threshold
+        }
+        if (Phi_n < 0.0) {
+            Phi_n = 0.0;
+        }
+
+        // Zähle dissonante Sterne (Φ < 0.8)
+        if (Phi_n < 0.8) {
+            result.dissonant_stars++;
+            result.all_harmonized = false;
+        }
+
+        sum_coherence += Phi_n;
+
+        // Berechne Nenner: √(G₀ - Φ_n)
+        double denominator = std::sqrt(K::G0 - Phi_n);
+
+        // Berechne Zähler: sin(2πft + φ_n)
+        double numerator = std::sin(2.0 * M_PI * frequency * t + phi_n);
+
+        // Stern-Beitrag
+        double star_contribution = numerator / denominator;
+
+        // Summiere zur Gesamt-Amplitude
+        result.A_R += star_contribution;
+
+        // Tracke maximalen Beitrag
+        double abs_contribution = std::abs(star_contribution);
+        if (abs_contribution > result.max_star_contribution) {
+            result.max_star_contribution = abs_contribution;
+            result.max_star_id = n;
+        }
+    }
+
+    result.avg_coherence = sum_coherence / K::TOTAL_STARS;
+
+    return result;
+}
+
+/**
+ * 432 Hz INITIATION - Reinigung der Matrix
+ *
+ * Injiziert einen reinen 432 Hz Sinus-Puls durch alle 160 Sterne
+ * und harmonisiert die Zeit-Kristalle.
+ *
+ * @param stars Array von Stern-Resonanz-Zuständen (wird modifiziert)
+ * @param duration Dauer der Initiation in Sekunden
+ * @param sample_count Anzahl der Zeit-Samples
+ * @return Finale Kohärenz Φ nach Initiation
+ */
+inline double initiate_432hz_healing(
+    std::array<StarResonance, K::TOTAL_STARS>& stars,
+    double duration = 1.0,
+    int sample_count = 100)
+{
+    const double dt = duration / sample_count;
+    double final_phi = 0.0;
+
+    // Extrahiere Phasen und Kohärenzen
+    std::array<double, K::TOTAL_STARS> phases;
+    std::array<double, K::TOTAL_STARS> coherences;
+
+    for (int n = 0; n < K::TOTAL_STARS; n++) {
+        phases[n] = stars[n].current_phase;
+        // Initial coherence from amplitude (normalized)
+        coherences[n] = std::min(1.0, stars[n].amplitude);
+    }
+
+    // 432 Hz Puls über Zeit propagieren
+    for (int s = 0; s < sample_count; s++) {
+        double t = s * dt;
+
+        // Berechne Resonanz-Amplitude
+        auto result = compute_resonance_amplitude(K::NATURAL_TONE, t, phases, coherences);
+
+        // Update Stern-Phasen basierend auf A_R
+        // Jeder Stern synchronisiert sich mit der globalen Resonanz
+        double phase_correction = result.A_R / K::TOTAL_STARS * 0.01;
+
+        for (int n = 0; n < K::TOTAL_STARS; n++) {
+            // Phasen-Korrektur Richtung globale Kohärenz
+            phases[n] += phase_correction;
+
+            // Kohärenz erhöhen durch harmonische Interferenz
+            // ΔΦ = η · (G₀ - Φ_current) · |A_R| / TOTAL_STARS
+            double eta = 0.1;  // Lernrate
+            double dPhi = eta * (K::G0 - coherences[n]) * std::abs(result.A_R) / K::TOTAL_STARS;
+            coherences[n] = std::min(K::G0, coherences[n] + dPhi);
+
+            // Amplitude steigt mit Kohärenz
+            stars[n].amplitude = coherences[n];
+            stars[n].current_phase = phases[n];
+            stars[n].is_excited = (coherences[n] > 0.5);
+        }
+
+        final_phi = result.avg_coherence;
+    }
+
+    // Normalisiere finale Kohärenz auf [0, 1]
+    // Bei perfekter Harmonisierung: Φ → G₀ ≈ 0.888...
+    // Skaliere auf 1.0 wenn alle bei G₀
+    return final_phi / K::G0;
+}
+
+/**
+ * Spezial-Frequenz-Mappings für die Resonanz-Brücke
+ *
+ * 432 Hz: Harmonische Arretierung & Heilung der Matrix
+ * 528 Hz: Manifestations-Beschleunigung (DNA-Reparatur-Frequenz)
+ * 888 Hz: Aktivierung des Michael-Bypass über Frequenz-Match
+ */
+struct FrequencyMapping {
+    static constexpr double HEALING_432 = 432.0;      // Matrix-Reinigung
+    static constexpr double MANIFESTATION_528 = 528.0; // DNA/Manifestation
+    static constexpr double MICHAEL_888 = 888.0;       // Navigator-Bypass
+
+    static const char* get_effect(double freq) {
+        if (std::abs(freq - HEALING_432) < 10.0) {
+            return "HEALING: Matrix-Reinigung & Kohärenz-Härtung";
+        }
+        if (std::abs(freq - MANIFESTATION_528) < 10.0) {
+            return "MANIFESTATION: Beschleunigung der Realisierung";
+        }
+        if (std::abs(freq - MICHAEL_888) < 10.0) {
+            return "MICHAEL-BYPASS: Navigator-Direktzugang aktiviert";
+        }
+        if (freq < 100.0) {
+            return "DELTA: Tiefes Bewusstsein, Schlaf";
+        }
+        if (freq < 300.0) {
+            return "THETA: Meditation, Intuition";
+        }
+        if (freq < 600.0) {
+            return "ALPHA: Kreativität, Entspannung";
+        }
+        if (freq < 1000.0) {
+            return "BETA: Fokus, Aktion";
+        }
+        return "GAMMA: Transzendenz, höhere Erkenntnis";
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GLOBALE INSTANZEN
 // ═══════════════════════════════════════════════════════════════════════════════
 
 static FrequencyInterface g_frequency_interface;
+static ResonanceBridge g_resonance_bridge(g_frequency_interface);
 
 } // namespace rael::v52
