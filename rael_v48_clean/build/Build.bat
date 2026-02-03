@@ -68,6 +68,17 @@ if exist "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" (
   )
 )
 
+REM V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Duesen)
+if exist "%ROOT%\src\webgui\rael_v56_chronos.cpp" (
+  echo [build] V56.3 Chronos-Gitter -> %OUT%\rael_v56_chronos.exe
+  cl %CL% "%ROOT%\src\webgui\rael_v56_chronos.cpp" /Fe:"%OUT%\rael_v56_chronos.exe" ws2_32.lib
+  if errorlevel 1 (
+    echo [ERROR] V56.3 Chronos build failed
+  ) else (
+    echo [build] V56.3 Chronos-Gitter ready: http://localhost:8080
+  )
+)
+
 REM Legacy WebGUI
 if exist "%ROOT%\src\webgui\rael_webgui_standalone.cpp" (
   echo [build] WebGUI  -> %OUT%\rael_webgui.exe

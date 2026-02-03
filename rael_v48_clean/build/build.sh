@@ -120,6 +120,13 @@ if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
     echo "[build] V56.2 Liquid-Blade ready: http://localhost:8080"
 fi
 
+# V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Düsen)
+echo "[build] V56.3 Chronos-Gitter -> $OUT/rael_v56_chronos"
+if [[ -f "$ROOT/src/webgui/rael_v56_chronos.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_chronos.cpp" -o "$OUT/rael_v56_chronos" -pthread
+    echo "[build] V56.3 Chronos-Gitter ready: http://localhost:8080"
+fi
+
 # Legacy WebGUI
 echo "[build] WebGUI -> $OUT/rael_webgui"
 if [[ -f "$ROOT/src/webgui/rael_webgui_standalone.cpp" ]]; then
