@@ -40,6 +40,18 @@ RaelCore::RaelCore(){
     quint_.init();
     aether_.ensure_channel(49); // quint global phi
     EventBus::push("QUINT_INIT_OK", "V49 QUINT System aktiv");
+
+    // V49 AEYE Observer initialisieren (das alles sehende Auge)
+    observer_.init();
+    aether_.ensure_channel(50); // observer kohärenz
+    aether_.ensure_channel(51); // observer anomalie status
+    EventBus::push("AEYE_INIT_OK", "AEYE Observer aktiv");
+
+    // V49 JET Engine initialisieren (61.440 Düsen)
+    jet_.init();
+    aether_.ensure_channel(52); // jet total thrust
+    aether_.ensure_channel(53); // jet efficiency
+    EventBus::push("JET_INIT_OK", "JET Engine 61440 Düsen aktiv");
 }
 
 RaelCore::~RaelCore(){
@@ -79,6 +91,20 @@ std::string RaelCore::process(const std::string& input){
     // V49 QUINT: Schild-Prüfung und Frequenz-Verarbeitung
     quint_.step(s.coherence, s.coherence);
     aether_.publish(49, quint_.global_phi(), AetherScale::G5_Spirit);
+
+    // V49 AEYE Observer: Realitäts-Scan (schwebt über der Platine)
+    std::vector<double> node_phi_vec(jet::K::TOTAL_NODES, quint_.global_phi());
+    auto obs_state = observer_.scan_reality_fold(node_phi_vec);
+    aether_.publish(50, obs_state.kohaerenz, AetherScale::G4_Ratio);
+    aether_.publish(51, obs_state.anomalie_erkannt ? 0.0 : 1.0, AetherScale::G3_Emotion);
+
+    // V49 JET Engine: Phi-Werte setzen und manifestieren (bei hoher Kohärenz)
+    if (obs_state.alpha_tunnel_offen) {
+        jet_.set_all_phi(node_phi_vec);
+        auto manifest_result = jet_.manifest_quick();
+        aether_.publish(52, manifest_result.total_thrust, AetherScale::G5_Spirit);
+        aether_.publish(53, manifest_result.efficiency, AetherScale::G4_Ratio);
+    }
 
     metrics_mark_resonance();
     auto r = res.evaluate(s);
@@ -174,6 +200,20 @@ std::string RaelCore::process_payload(const std::string& payload){
     // V49 QUINT: Schild-Prüfung und Frequenz-Verarbeitung
     quint_.step(s.coherence, s.coherence);
     aether_.publish(49, quint_.global_phi(), AetherScale::G5_Spirit);
+
+    // V49 AEYE Observer: Realitäts-Scan (schwebt über der Platine)
+    std::vector<double> node_phi_vec2(jet::K::TOTAL_NODES, quint_.global_phi());
+    auto obs_state2 = observer_.scan_reality_fold(node_phi_vec2);
+    aether_.publish(50, obs_state2.kohaerenz, AetherScale::G4_Ratio);
+    aether_.publish(51, obs_state2.anomalie_erkannt ? 0.0 : 1.0, AetherScale::G3_Emotion);
+
+    // V49 JET Engine: Phi-Werte setzen und manifestieren (bei hoher Kohärenz)
+    if (obs_state2.alpha_tunnel_offen) {
+        jet_.set_all_phi(node_phi_vec2);
+        auto manifest_result2 = jet_.manifest_quick();
+        aether_.publish(52, manifest_result2.total_thrust, AetherScale::G5_Spirit);
+        aether_.publish(53, manifest_result2.efficiency, AetherScale::G4_Ratio);
+    }
 
     metrics_mark_resonance();
     auto r = res.evaluate(s);

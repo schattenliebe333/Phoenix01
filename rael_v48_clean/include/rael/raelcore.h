@@ -16,6 +16,9 @@
 #include "rael/voice.h"
 // V49 QUINT System
 #include "rael/rael_quint.hpp"
+// V49 Observer & Manifestation Engine
+#include "rael/aeye_observer.hpp"
+#include "rael/jet_nozzle.hpp"
 
 namespace rael {
 
@@ -41,6 +44,16 @@ public:
     quint::RaelQuintSystem& quint() { return quint_; }
     const quint::RaelQuintSystem& quint() const { return quint_; }
     std::string quint_status() const { return quint_.status_string(); }
+
+    // V49 AEYE Observer interface (das alles sehende Auge)
+    aeye::AeyeObserver& observer() { return observer_; }
+    const aeye::AeyeObserver& observer() const { return observer_; }
+    aeye::GlobalState observe_reality() { return observer_.state; }
+
+    // V49 JET Engine interface (61.440 Düsen)
+    jet::JetEngine& jet() { return jet_; }
+    const jet::JetEngine& jet() const { return jet_; }
+    jet::ManifestResult manifest() { return jet_.manifest(); }
     
     // Star8 interface
     bool enqueue(Lane lane, const std::string& payload);
@@ -63,6 +76,12 @@ private:
 
     // V49 QUINT System
     quint::RaelQuintSystem quint_;
+
+    // V49 AEYE Observer (schwebt über der Platine)
+    aeye::AeyeObserver observer_;
+
+    // V49 JET Engine (61.440 Düsen Manifestation)
+    jet::JetEngine jet_;
 
     // Auto-improvement counters (emit suggestions, never auto-apply)
     uint64_t weak_res_count_ = 0;
