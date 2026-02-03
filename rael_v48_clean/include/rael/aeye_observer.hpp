@@ -270,5 +270,241 @@ public:
     }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AAR-ZYKLUS: AUTONOMES ASSOZIATIVES RESONANZ-LERNEN
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Der AAR-Zyklus ist das autonome Lernmodul von RAEL.
+// Er beobachtet die Effizienz aller Impulse und optimiert:
+//   1. MESSUNG:   Erfasst Ankunftszeit der 307.200 Impulse/s
+//   2. KORREKTUR: Minimiert Jitter durch Ψ-Gewichtsanpassung
+//   3. HÄRTUNG:   Erhöht Gate 53 Widerstand basierend auf Angriffen
+//
+// Der Zyklus läuft ENTKOPPELT vom Hauptsystem (kein Rückfluss).
+
+struct AARMeasurement {
+    uint64_t impulse_id;
+    double expected_arrival_ns;
+    double actual_arrival_ns;
+    double jitter_ns;
+    double phi_at_arrival;
+    int star_id;
+    int node_id;
+};
+
+struct AARCorrection {
+    int node_id;
+    double psi_weight_delta;
+    double omega_weight_delta;
+    double kuramoto_coupling_delta;
+    double efficacy;  // Wie effektiv war die Korrektur? [0..1]
+};
+
+struct AARHardening {
+    double gate53_resistance_increase;
+    double labyrinth_complexity_increase;
+    uint64_t attacks_absorbed;
+    double energy_harvested;
+};
+
+class AARZyklus {
+public:
+    // Statistische Daten
+    std::vector<AARMeasurement> measurements;
+    std::vector<AARCorrection> corrections;
+    AARHardening hardening;
+
+    // Konfiguration
+    static constexpr size_t MAX_MEASUREMENTS = 1000;
+    static constexpr double JITTER_TOLERANCE_NS = 1000.0;  // 1 µs
+    static constexpr double LEARNING_RATE = 0.01;
+
+    // Zeit-Kristalle (97 im VRAM)
+    std::array<double, 97> zeit_kristall_energie;
+    std::array<double, 97> zeit_kristall_phase;
+
+    // Aggregierte Statistiken
+    std::atomic<uint64_t> total_impulses_measured{0};
+    std::atomic<uint64_t> total_corrections_applied{0};
+    std::atomic<double> average_jitter_ns{0.0};
+    std::atomic<double> average_efficacy{0.0};
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // INITIALISIERUNG
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void init() {
+        measurements.clear();
+        measurements.reserve(MAX_MEASUREMENTS);
+        corrections.clear();
+        hardening = AARHardening{};
+        zeit_kristall_energie.fill(0.5);  // 50% initialer Füllstand
+        zeit_kristall_phase.fill(0.0);
+        total_impulses_measured = 0;
+        total_corrections_applied = 0;
+        average_jitter_ns = 0.0;
+        average_efficacy = 0.0;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 1: MESSUNG
+    // Erfasst die Ankunftszeit der Impulse am Hardware-Anker
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void record_impulse(uint64_t id, double expected_ns, double actual_ns,
+                        double phi, int star, int node) {
+        AARMeasurement m;
+        m.impulse_id = id;
+        m.expected_arrival_ns = expected_ns;
+        m.actual_arrival_ns = actual_ns;
+        m.jitter_ns = actual_ns - expected_ns;
+        m.phi_at_arrival = phi;
+        m.star_id = star;
+        m.node_id = node;
+
+        // Ringbuffer Verhalten
+        if (measurements.size() >= MAX_MEASUREMENTS) {
+            measurements.erase(measurements.begin());
+        }
+        measurements.push_back(m);
+        total_impulses_measured++;
+
+        // Rolling Average Jitter
+        double old_avg = average_jitter_ns.load();
+        double new_avg = old_avg + (std::abs(m.jitter_ns) - old_avg) /
+                         std::min(total_impulses_measured.load(), (uint64_t)1000);
+        average_jitter_ns.store(new_avg);
+
+        // Zeit-Kristall Update
+        int kristall_idx = node % 97;
+        zeit_kristall_energie[kristall_idx] += phi * 0.001;  // Kleine Akkumulation
+        if (zeit_kristall_energie[kristall_idx] > 1.0) {
+            zeit_kristall_energie[kristall_idx] = 1.0;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 2: KORREKTUR
+    // Minimiert Jitter zwischen den 160 Sternen durch Ψ-Gewichtsanpassung
+    // ═══════════════════════════════════════════════════════════════════════
+
+    AARCorrection compute_correction(int node_id) {
+        AARCorrection c;
+        c.node_id = node_id;
+        c.psi_weight_delta = 0.0;
+        c.omega_weight_delta = 0.0;
+        c.kuramoto_coupling_delta = 0.0;
+        c.efficacy = 0.0;
+
+        // Finde alle Messungen für diesen Knoten
+        std::vector<double> node_jitters;
+        for (const auto& m : measurements) {
+            if (m.node_id == node_id) {
+                node_jitters.push_back(m.jitter_ns);
+            }
+        }
+
+        if (node_jitters.empty()) return c;
+
+        // Berechne mittleren Jitter
+        double mean_jitter = 0;
+        for (double j : node_jitters) mean_jitter += j;
+        mean_jitter /= node_jitters.size();
+
+        // Berechne Korrektur
+        if (std::abs(mean_jitter) > JITTER_TOLERANCE_NS) {
+            // Positive Jitter = zu spät → erhöhe Psi (Beschleunigung)
+            // Negative Jitter = zu früh → erhöhe Omega (Verlangsamung)
+            if (mean_jitter > 0) {
+                c.psi_weight_delta = LEARNING_RATE * (mean_jitter / 10000.0);
+            } else {
+                c.omega_weight_delta = LEARNING_RATE * (-mean_jitter / 10000.0);
+            }
+
+            // Kuramoto Kopplungsstärke anpassen
+            c.kuramoto_coupling_delta = LEARNING_RATE *
+                (1.0 - std::abs(mean_jitter) / JITTER_TOLERANCE_NS);
+
+            // Efficacy schätzen (je kleiner der Jitter, desto besser)
+            c.efficacy = 1.0 / (1.0 + std::abs(mean_jitter) / JITTER_TOLERANCE_NS);
+        } else {
+            c.efficacy = 1.0;  // Perfekt
+        }
+
+        corrections.push_back(c);
+        total_corrections_applied++;
+
+        // Rolling Average Efficacy
+        double old_eff = average_efficacy.load();
+        double new_eff = old_eff + (c.efficacy - old_eff) /
+                         std::min(total_corrections_applied.load(), (uint64_t)1000);
+        average_efficacy.store(new_eff);
+
+        return c;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 3: HÄRTUNG
+    // Erhöht Gate 53 Widerstand basierend auf abgewehrten Angriffen
+    // ═══════════════════════════════════════════════════════════════════════
+
+    void harden_from_attack(double attack_pressure, double defense_energy) {
+        hardening.attacks_absorbed++;
+        hardening.energy_harvested += defense_energy;
+
+        // Gate 53 Widerstand erhöht sich mit jeder abgewehrten Attacke
+        // Nach Aikido-Prinzip: Angriffsdruck wird zu Verteidigung
+        double resistance_increase = attack_pressure * (5.0 / 9.0);  // G1 Effizienz
+        hardening.gate53_resistance_increase += resistance_increase;
+
+        // Labyrinth-Komplexität erhöht sich logarithmisch
+        hardening.labyrinth_complexity_increase =
+            std::log1p(hardening.attacks_absorbed) * 0.1;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ZEIT-KRISTALL INTERFACE
+    // Die 97 Kristalle im VRAM speichern den persistenten Kontext
+    // ═══════════════════════════════════════════════════════════════════════
+
+    double get_kristall_energie(int idx) const {
+        return zeit_kristall_energie[idx % 97];
+    }
+
+    void set_kristall_phase(int idx, double phase) {
+        zeit_kristall_phase[idx % 97] = phase;
+    }
+
+    double total_kristall_energie() const {
+        double sum = 0;
+        for (double e : zeit_kristall_energie) sum += e;
+        return sum;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // STATUS-STRING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    std::string status() const {
+        std::ostringstream oss;
+        oss << "═══════════════════════════════════════════════════════════\n";
+        oss << "AAR-ZYKLUS - AUTONOMES LERNEN\n";
+        oss << "═══════════════════════════════════════════════════════════\n";
+        oss << std::fixed << std::setprecision(3);
+        oss << "  Impulse gemessen:    " << total_impulses_measured.load() << "\n";
+        oss << "  Ø Jitter:            " << average_jitter_ns.load() << " ns\n";
+        oss << "  Korrekturen:         " << total_corrections_applied.load() << "\n";
+        oss << "  Ø Efficacy:          " << (average_efficacy.load() * 100.0) << "%\n";
+        oss << "───────────────────────────────────────────────────────────\n";
+        oss << "  Angriffe absorbiert: " << hardening.attacks_absorbed << "\n";
+        oss << "  Energie geerntet:    " << hardening.energy_harvested << "\n";
+        oss << "  Gate53 Härtung:      +" << hardening.gate53_resistance_increase << "\n";
+        oss << "───────────────────────────────────────────────────────────\n";
+        oss << "  Zeit-Kristall Total: " << total_kristall_energie() << "/97.0\n";
+        oss << "═══════════════════════════════════════════════════════════\n";
+        return oss.str();
+    }
+};
+
 } // namespace aeye
 } // namespace rael

@@ -65,6 +65,8 @@ struct ManifestResult {
     double total_thrust;        // Gesamt-Schub
     int nozzles_fired;          // Anzahl feuernder Düsen
     int nozzles_standby;        // Anzahl im Standgas
+    int nozzles_active;         // Anzahl aktiver Düsen (= fired)
+    int nozzles_supersonic;     // Anzahl Überschall-Düsen
     double efficiency;          // Effizienz (fired / total)
     bool supersonic;            // Überschall erreicht?
     uint64_t total_impulses;    // Gesamt-Impulse
@@ -138,7 +140,7 @@ public:
 
     ManifestResult manifest() {
         manifest_cycles++;
-        ManifestResult result = {0.0, 0, 0, 0.0, false, 0};
+        ManifestResult result = {0.0, 0, 0, 0, 0, 0.0, false, 0};
 
         // Parallele Verarbeitung mit CPU-Threads
         std::vector<std::thread> threads;
@@ -149,7 +151,7 @@ public:
         for (int t = 0; t < K::CPU_THREADS; t++) {
             threads.emplace_back([this, t, nozzles_per_thread, &partial_results]() {
                 ManifestResult& pr = partial_results[t];
-                pr = {0.0, 0, 0, 0.0, false, 0};
+                pr = {0.0, 0, 0, 0, 0, 0.0, false, 0};
 
                 int start = t * nozzles_per_thread;
                 int end = (t == K::CPU_THREADS - 1) ? K::TOTAL_NOZZLES : start + nozzles_per_thread;
@@ -166,10 +168,12 @@ public:
                         nozzles[i].active = true;
                         nozzles[i].fire_count++;
                         pr.nozzles_fired++;
+                        pr.nozzles_active++;
                         pr.total_impulses++;
 
                         if (thrust > 1.0f) {
                             pr.supersonic = true;
+                            pr.nozzles_supersonic++;
                         }
                     } else {
                         nozzles[i].active = false;
@@ -191,6 +195,8 @@ public:
             result.total_thrust += pr.total_thrust;
             result.nozzles_fired += pr.nozzles_fired;
             result.nozzles_standby += pr.nozzles_standby;
+            result.nozzles_active += pr.nozzles_active;
+            result.nozzles_supersonic += pr.nozzles_supersonic;
             result.total_impulses += pr.total_impulses;
             if (pr.supersonic) result.supersonic = true;
         }
@@ -207,7 +213,7 @@ public:
 
     ManifestResult manifest_quick() {
         manifest_cycles++;
-        ManifestResult result = {0.0, 0, 0, 0.0, false, 0};
+        ManifestResult result = {0.0, 0, 0, 0, 0, 0.0, false, 0};
 
         for (int i = 0; i < K::TOTAL_NOZZLES; i++) {
             int node_idx = i / K::NOZZLES_PER_NODE;
@@ -221,7 +227,11 @@ public:
                 nozzles[i].active = true;
                 nozzles[i].fire_count++;
                 result.nozzles_fired++;
-                if (thrust > 1.0f) result.supersonic = true;
+                result.nozzles_active++;
+                if (thrust > 1.0f) {
+                    result.supersonic = true;
+                    result.nozzles_supersonic++;
+                }
             } else {
                 nozzles[i].active = false;
                 result.nozzles_standby++;

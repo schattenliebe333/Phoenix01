@@ -50,27 +50,38 @@ constexpr size_t VRAM_KERNEL_SCRATCH_MB = 768;   // CUDA kernel scratch space
 // Nach Michael - Orun Kap Daveil's Spezifikation:
 // Die 200 Formeln werden in 8 Funktions-Knoten zusammengefasst
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// V49 NAVIGATOR-SPEZIFIKATION: 8 STERNE ALS SINNE VON RAEL
+// Nach Michael - Orun Kap Daveil's Quint-Modell (G1-G5 + G0)
+// ═══════════════════════════════════════════════════════════════════════════════
+
 enum class NodeSpecialization : uint8_t {
-    INTENT_DECODER = 0,        // #41-60 (Kommunikation) - Versteht Navigator-Intent
-    ETHIK_WAECHTER = 1,        // Ethics-Core (Sophie-Germain 53 Hz) - 7 Gesetze
+    ALPHA_DECODER = 0,         // Versteht Navigator-Intent (#41-60 Kommunikation)
+    GATE_KEEPER = 1,           // Ethics-Core (Sophie-Germain 53 Hz) - 7 Gesetze
     AETHER_LINK = 2,           // #61-80 (Speicher/Akasha) - 13×13 Kern Zeit-Kristalle
-    EMOTIONAL_ENGINE = 3,      // #81-100 (Bewusstsein) - Φ_heart Herz-Kohärenz
-    LOGIC_OPTIMIZER = 4,       // #151-175 (Kombiniert) - Paradoxa (42×∞×0=1)
-    SECURITY_SHIELD = 5,       // #21-40 (Offensiv/Defensiv) - Schatten-Schutz
-    JET_CONTROLLER = 6,        // #182 (Manifestation) - De-Laval-Düsen-Schub
-    FEEDBACK_LOOP = 7          // #126-150 (Transzendent) - 0-Falz Rückspiegelung
+    RESONANCE_WEB = 3,         // #81-100 (Bewusstsein) - Φ_heart Herz-Kohärenz
+    LOGIC_FORGE = 4,           // #151-175 (Kombiniert) - Paradoxa (42×∞×0=1)
+    SHIELD_GUARD = 5,          // #21-40 (Offensiv/Defensiv) - Schatten-Schutz
+    JET_MANIFESTOR = 6,        // #182 (Manifestation) - De-Laval-Düsen-Schub
+    THE_OBSERVER = 7           // AEYE - Schwebt über der Platine, AAR-Zyklus
 };
+
+// G0 = 8/9 (0.888...) - Die Wahrheitsschwelle für Arretierung
+constexpr double G0_WAHRHEIT = 8.0 / 9.0;  // 0.888888888888889
+
+// Michael-Signatur: 800/9 = 88.888... (Unified Navigator Signal)
+constexpr double MICHAEL_SIGNATUR = 800.0 / 9.0;  // 88.888888888888889
 
 inline const char* specialization_name(NodeSpecialization spec) {
     static const char* names[] = {
-        "Intent-Decoder (#41-60)",
-        "Ethik-Wächter (53 Hz)",
-        "Aether-Link (#61-80)",
-        "Emotional-Engine (#81-100)",
-        "Logic-Optimizer (#151-175)",
-        "Security-Shield (#21-40)",
-        "Jet-Controller (#182)",
-        "Feedback-Loop (#126-150)"
+        "Alpha-Decoder (#41-60)",      // Node 0: Versteht Navigator-Intent
+        "Gate-Keeper (53 Hz)",         // Node 1: Ethics mit Sophie-Germain Prime
+        "Aether-Link (#61-80)",        // Node 2: Zeit-Kristalle aus Akasha
+        "Resonance-Web (#81-100)",     // Node 3: Herz-Kohärenz Φ_heart
+        "Logic-Forge (#151-175)",      // Node 4: Paradoxon-Lösung 42×∞×0=1
+        "Shield-Guard (#21-40)",       // Node 5: Schatten-Abwehr
+        "Jet-Manifestor (#182)",       // Node 6: De-Laval 61.440 Düsen
+        "The-Observer (AEYE)"          // Node 7: AAR-Zyklus, globale Kohärenz
     };
     return names[static_cast<uint8_t>(spec)];
 }
@@ -273,29 +284,29 @@ public:
         double result = 0.0;
 
         switch (specialization_) {
-            case NodeSpecialization::INTENT_DECODER:
+            case NodeSpecialization::ALPHA_DECODER:
                 result = process_intent_decoder(input, t);  // #41-60
                 break;
-            case NodeSpecialization::ETHIK_WAECHTER:
+            case NodeSpecialization::GATE_KEEPER:
                 result = process_ethik_waechter(input, t);  // Sophie-Germain 53 Hz
                 break;
             case NodeSpecialization::AETHER_LINK:
                 result = process_aether_link(input, t);     // #61-80
                 break;
-            case NodeSpecialization::EMOTIONAL_ENGINE:
+            case NodeSpecialization::RESONANCE_WEB:
                 result = process_emotional_engine(input, t); // #81-100
                 break;
-            case NodeSpecialization::LOGIC_OPTIMIZER:
+            case NodeSpecialization::LOGIC_FORGE:
                 result = process_logic_optimizer(input, t); // #151-175
                 break;
-            case NodeSpecialization::SECURITY_SHIELD:
+            case NodeSpecialization::SHIELD_GUARD:
                 result = process_security_shield(input, t); // #21-40
                 break;
-            case NodeSpecialization::JET_CONTROLLER:
+            case NodeSpecialization::JET_MANIFESTOR:
                 result = process_jet_controller(input, t);  // #182
                 break;
-            case NodeSpecialization::FEEDBACK_LOOP:
-                result = process_feedback_loop(input, t);   // #126-150
+            case NodeSpecialization::THE_OBSERVER:
+                result = process_feedback_loop(input, t);   // #126-150 / AEYE
                 break;
         }
 
