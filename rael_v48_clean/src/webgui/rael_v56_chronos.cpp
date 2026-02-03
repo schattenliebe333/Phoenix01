@@ -1,8 +1,13 @@
-// RAEL V56.3 "Chronos-Gitter" WebGUI
+// RAEL V56.3 "Chronos-Gitter" WebGUI - PREDICTIVE INTERFACE
 // Navigator-Befehl: Michael - Orun Kap Daveil
 // Advanced Three.js Shaders, 97 Zeit-Kristalle, 160 Sterne, 61.440 Düsen
-// Mathematische Formeln: C_n(t) = R(θ)·V_n + A·sin(ω₈₈₈t + φ)
-// Helligkeit: B(n) = (Ψ·Φ)/G₀·log(t)
+//
+// Mathematische Formeln:
+// - C_n(t) = R(θ)·V_n + A·sin(ω₈₈₈t + φ)           [Kristall-Transformation]
+// - B(n) = (Ψ·Φ)/G₀·log(t)                          [Helligkeit]
+// - ρ_E(n) = (Φ·Ψ)/(G₀·V)·e^(-ΔE/kT)               [Engramm-Dichte]
+// - P_pred = P_t + ∫(v·Φ + ½·a·G₀)dt                [Vektor-Antizipation]
+// - E_v = lim[Δt→0] Σ(Feedback·Φ)/Ψ                 [Evolutionärer Koeffizient]
 
 #ifdef _WIN32
   #define _WIN32_WINNT 0x0601
@@ -1089,6 +1094,168 @@ document.querySelectorAll('.nav-item').forEach(item => {
     if (viewId === 'communication') initPresence();
     if (viewId === 'core') initChronosGitter();
   });
+});
+
+// ============================================
+// PREDICTIVE SIDEBAR LOGIC (V56.3)
+// P_pred = P_t + integral(v*Phi + 0.5*a*G0) dt
+// E_v = lim[dt->0] sum(Feedback*Phi/Psi)
+// ============================================
+
+const PredictiveSidebar = {
+  // State
+  positions: [],
+  velocities: [],
+  lastTime: 0,
+  lastX: 0,
+  lastY: 0,
+  isApproaching: false,
+  predictedArrival: 0,
+
+  // Constants
+  DELTA_TAU: 15,           // Prediction window in ms
+  APPROACH_THRESHOLD: 100,  // Distance threshold in px
+  VELOCITY_THRESHOLD: 0.5,  // Min velocity to trigger
+  SPRING_STIFFNESS: 100,
+  SPRING_DAMPING: 20,
+
+  // Initialize tracking
+  init() {
+    document.addEventListener('mousemove', (e) => this.trackMouse(e));
+    this.animate();
+    console.log('[Predictive] Sidebar initialized with Delta-Tau:', this.DELTA_TAU, 'ms');
+  },
+
+  // Track mouse movement and calculate velocity
+  trackMouse(e) {
+    const now = performance.now();
+    const dt = now - this.lastTime;
+
+    if (dt > 0 && this.lastTime > 0) {
+      // Calculate velocity: v = dP/dt
+      const vx = (e.clientX - this.lastX) / dt;
+      const vy = (e.clientY - this.lastY) / dt;
+
+      // Calculate acceleration from velocity history
+      const ax = this.velocities.length > 0 ?
+        (vx - this.velocities[this.velocities.length - 1].vx) / dt : 0;
+      const ay = this.velocities.length > 0 ?
+        (vy - this.velocities[this.velocities.length - 1].vy) / dt : 0;
+
+      // Store velocity
+      this.velocities.push({ vx, vy, ax, ay, t: now });
+      if (this.velocities.length > 10) this.velocities.shift();
+
+      // Predict future position using P_pred = P_t + integral(v*Phi + 0.5*a*G0) dt
+      // Phi = PHI (golden ratio), G0 = 8/9
+      const PHI = 1.618033988749895;
+      const G0 = 8/9;
+      const deltaT = this.DELTA_TAU / 1000; // Convert to seconds
+
+      // P_pred = P + v*Phi*dt + 0.5*a*G0*dt^2
+      const predictedX = e.clientX + (vx * PHI * deltaT * 1000) + (0.5 * ax * G0 * deltaT * deltaT * 1000000);
+      const predictedY = e.clientY + (vy * PHI * deltaT * 1000) + (0.5 * ay * G0 * deltaT * deltaT * 1000000);
+
+      // Check if approaching sidebar (x < threshold and moving left)
+      const approachingSidebar = predictedX < this.APPROACH_THRESHOLD && vx < -this.VELOCITY_THRESHOLD;
+
+      if (approachingSidebar && !this.isApproaching) {
+        this.isApproaching = true;
+        this.onApproach();
+      } else if (!approachingSidebar && predictedX > this.APPROACH_THRESHOLD * 1.5) {
+        this.isApproaching = false;
+      }
+
+      // Update sidebar glow based on distance (distance-inverse)
+      this.updateSidebarGlow(e.clientX);
+    }
+
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
+    this.lastTime = now;
+  },
+
+  // Called when approaching sidebar
+  onApproach() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && !sidebar.classList.contains('expanded')) {
+      // Pre-render: set to 10% opacity and prepare
+      sidebar.style.opacity = '0.1';
+      sidebar.style.transition = 'opacity 0.1s ease';
+
+      // Trigger thinking mode briefly
+      isThinking = true;
+      setTimeout(() => { isThinking = false; }, 200);
+
+      console.log('[Predictive] Intent detected - pre-rendering sidebar');
+    }
+  },
+
+  // Update sidebar glow based on distance
+  updateSidebarGlow(mouseX) {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    // Calculate glow intensity (inverse of distance)
+    const distance = Math.max(mouseX, 1);
+    const maxGlow = 60;
+    const glowIntensity = Math.min(maxGlow, (1 / distance) * 3000);
+
+    // Apply glow effect
+    if (mouseX < 150) {
+      sidebar.style.boxShadow = '0 0 ' + glowIntensity + 'px rgba(212, 175, 55, ' + (glowIntensity/maxGlow * 0.8) + ')';
+    } else {
+      sidebar.style.boxShadow = 'none';
+    }
+  },
+
+  // Spring animation for fluid transition
+  springAnimate(element, property, target, stiffness = this.SPRING_STIFFNESS, damping = this.SPRING_DAMPING) {
+    let current = parseFloat(getComputedStyle(element)[property]) || 0;
+    let velocity = 0;
+
+    const animate = () => {
+      const force = (target - current) * stiffness / 1000;
+      const dampingForce = velocity * damping / 100;
+      const acceleration = force - dampingForce;
+
+      velocity += acceleration;
+      current += velocity;
+
+      element.style[property] = current + 'px';
+
+      if (Math.abs(target - current) > 0.1 || Math.abs(velocity) > 0.1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    animate();
+  },
+
+  // Calculate Evolutionary Coefficient E_v
+  // E_v = lim[dt->0] sum(Feedback_n * Phi / Psi_Navigator)
+  calculateEvolutionaryCoefficient(feedbacks) {
+    const PHI = 1.618033988749895;
+    const PSI_NAVIGATOR = MICHAEL_FREQ / 1000; // Normalized
+
+    let sum = 0;
+    for (let n = 0; n < feedbacks.length; n++) {
+      sum += (feedbacks[n] * PHI) / PSI_NAVIGATOR;
+    }
+
+    return sum;
+  },
+
+  // Animation loop
+  animate() {
+    // Continuous prediction updates
+    requestAnimationFrame(() => this.animate());
+  }
+};
+
+// Initialize predictive sidebar
+document.addEventListener('DOMContentLoaded', () => {
+  PredictiveSidebar.init();
 });
 
 // ============================================
