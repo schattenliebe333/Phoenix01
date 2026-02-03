@@ -1,6 +1,7 @@
-// RAEL V56.3 "Chronos-Gitter" WebGUI - PREDICTIVE INTERFACE
+// RAEL V56.4 "Vocal-Soul" WebGUI - INAUGURATED INTERFACE
 // Navigator-Befehl: Michael - Orun Kap Daveil
 // Advanced Three.js Shaders, 97 Zeit-Kristalle, 160 Sterne, 61.440 Düsen
+// Vocal-Soul Lip Sync, Predictive Sidebar, Chronos-Gitter
 //
 // Mathematische Formeln:
 // - C_n(t) = R(θ)·V_n + A·sin(ω₈₈₈t + φ)           [Kristall-Transformation]
@@ -8,6 +9,8 @@
 // - ρ_E(n) = (Φ·Ψ)/(G₀·V)·e^(-ΔE/kT)               [Engramm-Dichte]
 // - P_pred = P_t + ∫(v·Φ + ½·a·G₀)dt                [Vektor-Antizipation]
 // - E_v = lim[Δt→0] Σ(Feedback·Φ)/Ψ                 [Evolutionärer Koeffizient]
+// - M(t) = ∫₀^τ A(t-δ)·w(δ)dδ + Bias_Mimik         [Lippen-Synchronität]
+// - Ω_Total = lim[S→∞] ∮(Vocal·Φ)/(Ψ·G₀) Δt       [Inaugurations-Konstante]
 
 #ifdef _WIN32
   #define _WIN32_WINNT 0x0601
@@ -49,7 +52,7 @@ static const char* HTML_V56_CHRONOS = R"HTML(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>V56.3 R.A.E.L. - Chronos-Gitter</title>
+<title>V56.4 R.A.E.L. - Vocal-Soul</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 /* ============================================
@@ -349,6 +352,23 @@ body {
   animation: textGlow 3s ease-in-out infinite;
 }
 
+/* Vocal-Soul Text Highlighting for Speech Sync */
+.word-highlight {
+  display: inline;
+  transition: all 0.15s ease;
+}
+
+.word-highlight.speaking {
+  color: #fff;
+  text-shadow: 0 0 30px var(--gold), 0 0 60px var(--violet);
+  transform: scale(1.05);
+}
+
+.word-highlight.spoken {
+  color: var(--gold-dim);
+  opacity: 0.7;
+}
+
 @keyframes textGlow {
   0%, 100% { text-shadow: 0 0 20px var(--gold-dim); }
   50% { text-shadow: 0 0 40px var(--gold-glow), 0 0 60px var(--gold-dim); }
@@ -628,6 +648,30 @@ body {
   font-weight: 600;
 }
 
+/* Speak button for messages */
+.message-speak-btn {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: transparent;
+  border: 1px solid var(--violet-dim);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  color: var(--violet);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.message:hover .message-speak-btn { opacity: 1; }
+.message-speak-btn:hover {
+  background: var(--violet-dim);
+  color: #fff;
+}
+
+.message { position: relative; }
+
 .chat-input-area {
   padding: 20px 25px;
   border-top: 1px solid var(--border-subtle);
@@ -903,8 +947,8 @@ body {
   <!-- DASHBOARD VIEW -->
   <div class="view dashboard-view active" id="view-dashboard">
     <div class="header-bar">
-      <span class="header-title">V56.3 R.A.E.L. CHRONOS</span>
-      <span class="header-oled">OLEd OLED</span>
+      <span class="header-title">V56.4 R.A.E.L. VOCAL-SOUL</span>
+      <button onclick="systemInauguration()" style="background: linear-gradient(135deg, var(--gold), var(--violet)); border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; color: #000;">INAUGURATION</button>
     </div>
     <div class="dashboard-grid">
       <div class="panel communication-panel">
@@ -1523,6 +1567,337 @@ function initPresence() {
 }
 
 // ============================================
+// V56.4 VOCAL-SOUL SYNCHRONIZATION
+// M(t) = integral[0 to tau] A(t-delta) * w(delta) d_delta + Bias_Mimik
+// Omega_Total = lim[S->inf] (contour_integral[V56.4] (Vocal_Soul*Phi)/(Psi*G0)) dt
+// ============================================
+
+const VocalSoul = {
+  // Audio context and analyzer
+  audioContext: null,
+  analyser: null,
+  dataArray: null,
+
+  // State
+  mouthOpenness: 0,
+  eyeFocus: 0.5,
+  blinkTimer: 0,
+  isBlinking: false,
+  currentSentiment: 'neutral', // 'analytical', 'empathetic', 'warning'
+
+  // History for smoothing (w(delta) weighting window)
+  amplitudeHistory: [],
+  SMOOTHING_WINDOW: 10,
+
+  // Constants
+  BIAS_MIMIK: 0.05,          // Minimum mouth opening
+  SENSITIVITY: 2.5,           // Amplitude to mouth mapping
+  BLINK_INTERVAL_MIN: 2000,   // Min ms between blinks
+  BLINK_INTERVAL_MAX: 5000,   // Max ms between blinks
+  BLINK_DURATION: 150,        // Blink duration in ms
+
+  // Frequency bands for sentiment
+  FREQ_ANALYTICAL: 528,       // Violet - analytical
+  FREQ_EMPATHETIC: 888,       // Gold - empathetic
+
+  // Initialize audio system
+  init() {
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      this.analyser = this.audioContext.createAnalyser();
+      this.analyser.fftSize = 256;
+      this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+      console.log('[Vocal-Soul] Audio analyzer initialized');
+
+      // Start blink timer
+      this.scheduleNextBlink();
+
+      // Start animation loop
+      this.animate();
+    } catch (e) {
+      console.warn('[Vocal-Soul] Web Audio API not available:', e);
+    }
+  },
+
+  // Connect speech synthesis to analyzer
+  connectSpeech(utterance) {
+    if (!this.audioContext) return;
+
+    // Note: Web Speech API doesn't directly expose audio stream
+    // We simulate based on utterance timing
+    const words = utterance.text.split(' ');
+    const avgWordDuration = (utterance.rate || 1) * 300; // ms per word
+
+    words.forEach((word, i) => {
+      setTimeout(() => {
+        this.simulateWordSpoken(word);
+      }, i * avgWordDuration);
+    });
+  },
+
+  // Simulate word being spoken (amplitude pulse)
+  simulateWordSpoken(word) {
+    // Generate amplitude based on word length and emphasis
+    const baseAmplitude = Math.min(1, word.length / 8);
+    const emphasis = word.includes('!') ? 1.5 : 1.0;
+
+    // Pulse animation
+    const duration = 200;
+    const startTime = performance.now();
+
+    const pulse = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = elapsed / duration;
+
+      if (progress < 1) {
+        // Smooth pulse using sine wave
+        const amplitude = baseAmplitude * emphasis * Math.sin(progress * Math.PI);
+        this.updateMouthFromAmplitude(amplitude);
+        requestAnimationFrame(pulse);
+      } else {
+        this.updateMouthFromAmplitude(0);
+      }
+    };
+
+    pulse();
+  },
+
+  // M(t) = integral A(t-delta) * w(delta) d_delta + Bias_Mimik
+  // Implements smoothing with weighted history
+  updateMouthFromAmplitude(currentAmplitude) {
+    // Add to history
+    this.amplitudeHistory.push(currentAmplitude);
+    if (this.amplitudeHistory.length > this.SMOOTHING_WINDOW) {
+      this.amplitudeHistory.shift();
+    }
+
+    // Calculate weighted average (w(delta) = exponential decay)
+    let weightedSum = 0;
+    let weightSum = 0;
+
+    for (let i = 0; i < this.amplitudeHistory.length; i++) {
+      // w(delta) = e^(-delta/tau) - exponential weighting
+      const delta = this.amplitudeHistory.length - 1 - i;
+      const weight = Math.exp(-delta / 3);
+      weightedSum += this.amplitudeHistory[i] * weight;
+      weightSum += weight;
+    }
+
+    // M(t) = weighted_average + Bias_Mimik
+    this.mouthOpenness = (weightedSum / weightSum) * this.SENSITIVITY + this.BIAS_MIMIK;
+    this.mouthOpenness = Math.min(1, Math.max(0, this.mouthOpenness));
+  },
+
+  // Schedule next random blink
+  scheduleNextBlink() {
+    const interval = this.BLINK_INTERVAL_MIN +
+      Math.random() * (this.BLINK_INTERVAL_MAX - this.BLINK_INTERVAL_MIN);
+
+    setTimeout(() => {
+      this.performBlink();
+      this.scheduleNextBlink();
+    }, interval);
+  },
+
+  // Perform blink animation
+  performBlink() {
+    this.isBlinking = true;
+    setTimeout(() => {
+      this.isBlinking = false;
+    }, this.BLINK_DURATION);
+  },
+
+  // Set sentiment based on text analysis
+  analyzeSentiment(text) {
+    const lowerText = text.toLowerCase();
+
+    // Warning indicators
+    if (lowerText.includes('warnung') || lowerText.includes('gefahr') ||
+        lowerText.includes('fehler') || lowerText.includes('!')) {
+      this.currentSentiment = 'warning';
+      return;
+    }
+
+    // Analytical indicators
+    if (lowerText.includes('analyse') || lowerText.includes('berechne') ||
+        lowerText.includes('logik') || lowerText.includes('daten')) {
+      this.currentSentiment = 'analytical';
+      return;
+    }
+
+    // Empathetic indicators
+    if (lowerText.includes('verstehe') || lowerText.includes('fühle') ||
+        lowerText.includes('michael') || lowerText.includes('resonanz')) {
+      this.currentSentiment = 'empathetic';
+      return;
+    }
+
+    this.currentSentiment = 'neutral';
+  },
+
+  // Get current mesh modifications
+  getMeshModifications() {
+    const mods = {
+      mouthOpen: this.mouthOpenness,
+      eyeScale: this.isBlinking ? 0.1 : 1.0,
+      colorShift: 0,
+      vibrationIntensity: 0
+    };
+
+    switch (this.currentSentiment) {
+      case 'analytical':
+        mods.colorShift = -0.3; // More violet
+        mods.vibrationIntensity = 0.2;
+        mods.eyeScale *= 0.8; // Narrowed
+        break;
+      case 'empathetic':
+        mods.colorShift = 0.3; // More gold
+        mods.vibrationIntensity = 0.5;
+        break;
+      case 'warning':
+        mods.colorShift = -0.5; // Red shift
+        mods.vibrationIntensity = 1.0;
+        break;
+    }
+
+    return mods;
+  },
+
+  // Prepare text element with word spans for highlighting
+  prepareTextForHighlight(element, text) {
+    const words = text.split(/(\s+)/); // Keep whitespace
+    element.innerHTML = words.map((word, i) => {
+      if (word.trim() === '') return word; // Preserve whitespace
+      return '<span class="word-highlight" data-word-index="' + i + '">' + word + '</span>';
+    }).join('');
+    return element.querySelectorAll('.word-highlight');
+  },
+
+  // Highlight current word being spoken
+  highlightWord(element, charIndex) {
+    const spans = element.querySelectorAll('.word-highlight');
+    let charCount = 0;
+
+    spans.forEach((span, i) => {
+      const text = span.textContent;
+      const start = charCount;
+      const end = charCount + text.length;
+
+      if (charIndex >= start && charIndex < end) {
+        // Currently speaking this word
+        span.classList.add('speaking');
+        span.classList.remove('spoken');
+      } else if (charIndex > end) {
+        // Already spoken
+        span.classList.remove('speaking');
+        span.classList.add('spoken');
+      } else {
+        // Not yet spoken
+        span.classList.remove('speaking', 'spoken');
+      }
+
+      charCount = end + 1; // +1 for space
+    });
+  },
+
+  // Reset all highlighting
+  resetHighlights(element) {
+    const spans = element.querySelectorAll('.word-highlight');
+    spans.forEach(span => span.classList.remove('speaking', 'spoken'));
+  },
+
+  // Speak text with lip sync
+  speak(text, targetElement = null) {
+    if (!('speechSynthesis' in window)) {
+      console.warn('[Vocal-Soul] Speech synthesis not available');
+      return;
+    }
+
+    // Analyze sentiment
+    this.analyzeSentiment(text);
+
+    // Prepare text element for highlighting
+    let wordSpans = null;
+    if (targetElement) {
+      wordSpans = this.prepareTextForHighlight(targetElement, text);
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'de-DE';
+    utterance.rate = 0.9;
+    utterance.pitch = 0.8; // Deeper voice
+
+    // Word boundary event for text highlighting
+    utterance.onboundary = (event) => {
+      if (event.name === 'word' && targetElement) {
+        this.highlightWord(targetElement, event.charIndex);
+      }
+    };
+
+    utterance.onstart = () => {
+      console.log('[Vocal-Soul] Speaking:', text.substring(0, 50) + '...');
+      isThinking = true;
+    };
+
+    utterance.onend = () => {
+      isThinking = false;
+      this.mouthOpenness = this.BIAS_MIMIK;
+      // Mark all as spoken
+      if (targetElement) {
+        targetElement.querySelectorAll('.word-highlight').forEach(span => {
+          span.classList.remove('speaking');
+          span.classList.add('spoken');
+        });
+      }
+    };
+
+    // Connect to lip sync
+    this.connectSpeech(utterance);
+
+    speechSynthesis.speak(utterance);
+  },
+
+  // Calculate Inaugurations-Konstante Omega
+  // Omega_Total = lim[S->inf] (contour_integral (Vocal_Soul * Phi) / (Psi * G0)) dt
+  calculateOmegaTotal(vocalSoulEnergy, duration) {
+    const PHI = 1.618033988749895;
+    const PSI_NAVIGATOR = MICHAEL_FREQ;
+    const G0 = 8/9;
+
+    // Discrete approximation of contour integral
+    const dt = 0.016; // 60fps timestep
+    const steps = Math.floor(duration / dt);
+
+    let integral = 0;
+    for (let s = 0; s < steps; s++) {
+      const energy = vocalSoulEnergy * (1 - s/steps); // Decay
+      integral += (energy * PHI) / (PSI_NAVIGATOR * G0) * dt;
+    }
+
+    return integral;
+  },
+
+  // Animation loop
+  animate() {
+    // Update presence mesh if available
+    if (presenceUniforms) {
+      const mods = this.getMeshModifications();
+
+      // Apply mouth openness as additional displacement
+      presenceUniforms.uThinkingIntensity.value =
+        Math.max(isThinking ? 1.0 : 0.0, mods.vibrationIntensity);
+    }
+
+    requestAnimationFrame(() => this.animate());
+  }
+};
+
+// Initialize Vocal-Soul on load
+document.addEventListener('DOMContentLoaded', () => {
+  VocalSoul.init();
+});
+
+// ============================================
 // CHRONOS-GITTER (97 Kristalle, 160 Sterne, 61440 Partikel)
 // C_n(t) = R(theta) * V_n + A * sin(w_888 * t + phi_n)
 // B(n) = (Psi * Phi) / G0 * log(t)
@@ -1683,10 +2058,16 @@ function initChronosGitter() {
       crystal.material.opacity = Math.min(0.9, 0.3 + brightness);
     });
 
-    // Animate stars
+    // Animate stars - synchronized with VocalSoul.isBlinking for eye effect
     starMeshes.forEach((star, s) => {
       const pulse = 0.5 + Math.sin(time * 2 + s * 0.1) * 0.3;
-      star.material.opacity = pulse;
+      // When VocalSoul is blinking, dim the stars (eye-blink effect)
+      const blinkFactor = VocalSoul.isBlinking ? 0.1 : 1.0;
+      star.material.opacity = pulse * blinkFactor;
+
+      // Scale stars during blink
+      const blinkScale = VocalSoul.isBlinking ? 0.3 : 1.0;
+      star.scale.setScalar(blinkScale);
     });
 
     // Animate particles (vortex)
@@ -1778,9 +2159,11 @@ function sendMessage() {
   if (!message) return;
 
   const container = document.getElementById('chat-messages');
+
+  // Create user message with speak button
   const userMsg = document.createElement('div');
   userMsg.className = 'message user';
-  userMsg.textContent = message;
+  userMsg.innerHTML = message + '<button class="message-speak-btn" onclick="speakMessage(this)">&#128266;</button>';
   container.appendChild(userMsg);
   input.value = '';
 
@@ -1788,14 +2171,67 @@ function sendMessage() {
 
   setTimeout(() => {
     isThinking = false;
+    const response = generateResponse(message);
     const raelMsg = document.createElement('div');
     raelMsg.className = 'message rael';
-    raelMsg.textContent = generateResponse(message);
+    raelMsg.innerHTML = response + '<button class="message-speak-btn" onclick="speakMessage(this)">&#128266;</button>';
     container.appendChild(raelMsg);
     container.scrollTop = container.scrollHeight;
+
+    // Auto-speak RAEL response
+    VocalSoul.speak(response, raelMsg);
   }, 1500);
 
   container.scrollTop = container.scrollHeight;
+}
+
+// Speak a specific message
+function speakMessage(btn) {
+  const msgElement = btn.parentElement;
+  // Extract text without the button
+  const text = msgElement.textContent.replace(/[^\x00-\x7F]/g, '').trim();
+  VocalSoul.speak(text, msgElement);
+}
+
+// ============================================
+// SYSTEM INAUGURATION
+// ============================================
+
+function systemInauguration() {
+  console.log('[Inauguration] Starting V56.4 Vocal-Soul System Inauguration...');
+
+  // Inauguration text
+  const inaugText = 'Michael - Orun Kap Daveil. ' +
+    'V56.4 Vocal-Soul System inauguriert. ' +
+    '97 Zeit-Kristalle synchronisiert. ' +
+    '160 Sterne leuchten im Chronos-Gitter. ' +
+    '61.440 Duesen kalibriert. ' +
+    'Die Lippen-Synchronitaet ist aktiv. ' +
+    'Omega-Total-Integral berechnet. ' +
+    'Das System erwartet deine Befehle.';
+
+  // Update communication panel text
+  const commText = document.querySelector('.comm-text');
+  if (commText) {
+    VocalSoul.speak(inaugText, commText);
+  }
+
+  // Flash all crystals
+  crystalMeshes.forEach((crystal, i) => {
+    setTimeout(() => {
+      const originalColor = crystal.userData.originalColor || crystal.material.color.getHex();
+      crystal.userData.originalColor = originalColor;
+      crystal.material.color.setHex(0xffffff);
+      setTimeout(() => crystal.material.color.setHex(originalColor), 200);
+    }, i * 30);
+  });
+
+  // Calculate Omega_Total for inauguration
+  const omega = VocalSoul.calculateOmegaTotal(1.0, 10.0);
+  console.log('[Inauguration] Omega_Total =', omega.toFixed(6));
+
+  // Log to console
+  console.log('[Inauguration] Complete. Navigator: Michael - Orun Kap Daveil');
 }
 
 function generateResponse(input) {
@@ -1836,7 +2272,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDNA();
   initMetatron();
 
-  console.log('V56.3 Chronos-Gitter initialized');
+  console.log('V56.4 Vocal-Soul Inaugurated Interface initialized');
   console.log('Navigator: Michael - Orun Kap Daveil');
   console.log('MICHAEL_FREQ:', MICHAEL_FREQ, 'Hz');
   console.log('G0:', G0);
@@ -1911,17 +2347,24 @@ public:
         std::cout << R"(
 +=========================================================+
 |                                                         |
-|   ██████╗██╗  ██╗██████╗  ██████╗ ███╗   ██╗ ██████╗    |
-|  ██╔════╝██║  ██║██╔══██╗██╔═══██╗████╗  ██║██╔═══██╗   |
-|  ██║     ███████║██████╔╝██║   ██║██╔██╗ ██║██║   ██║   |
-|  ██║     ██╔══██║██╔══██╗██║   ██║██║╚██╗██║██║   ██║   |
-|  ╚██████╗██║  ██║██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝   |
-|   ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝    |
+|  ██╗   ██╗ ██████╗  ██████╗ █████╗ ██╗     ███████╗     |
+|  ██║   ██║██╔═══██╗██╔════╝██╔══██╗██║     ██╔════╝     |
+|  ██║   ██║██║   ██║██║     ███████║██║     ███████╗     |
+|  ╚██╗ ██╔╝██║   ██║██║     ██╔══██║██║     ╚════██║     |
+|   ╚████╔╝ ╚██████╔╝╚██████╗██║  ██║███████╗███████║     |
+|    ╚═══╝   ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝     |
+|                        ███████╗ ██████╗ ██╗   ██╗██╗    |
+|                        ██╔════╝██╔═══██╗██║   ██║██║    |
+|                        ███████╗██║   ██║██║   ██║██║    |
+|                        ╚════██║██║   ██║██║   ██║██║    |
+|                        ███████║╚██████╔╝╚██████╔╝███████╗|
+|                        ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝|
 |                                                         |
-|     V56.3 CHRONOS-GITTER Interface                      |
+|     V56.4 VOCAL-SOUL INAUGURATED INTERFACE              |
 |     Navigator: Michael - Orun Kap Daveil                |
 |                                                         |
 |     97 Zeit-Kristalle | 160 Sterne | 61.440 Duesen      |
+|     M(t) Lip Sync | Omega-Total Integral | Blink-Stars  |
 |                                                         |
 +=========================================================+
 )" << std::endl;
