@@ -286,7 +286,8 @@ constexpr double F_TOR = 720.0;         // Tor-Resonanz
 constexpr double F_KAMMER = 432.0;      // Kammer-Harmonie
 constexpr double F_STRUKTUR = 144.0;    // Struktur-Kristall
 constexpr double F_FILTER = 53.0;       // Sophie-Germain-Zollstation
-constexpr double F_SCHUMANN = 13.0;     // Schumann-Erdung
+constexpr double F_SCHUMANN = 7.83;     // Schumann-Erdung (AUDIT-FIX: war 13.0)
+constexpr double F_SCHUMANN_13 = 13.0;  // Schumann 2. Harmonische
 constexpr double F_MATERIE = 5.0;       // Materie-Manifestation
 
 // Physical constants

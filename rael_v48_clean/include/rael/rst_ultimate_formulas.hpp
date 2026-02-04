@@ -51,7 +51,8 @@ constexpr double F_TOR = 720.0;
 constexpr double F_KAMMER = 432.0;
 constexpr double F_STRUKTUR = 144.0;
 constexpr double F_FILTER = 53.0;
-constexpr double F_SCHUMANN = 13.0;
+constexpr double F_SCHUMANN = 7.83;      // AUDIT-FIX: war 13.0
+constexpr double F_SCHUMANN_13 = 13.0;   // Schumann 2. Harmonische
 constexpr double F_MATERIE = 5.0;
 
 constexpr double HBAR = 1.054571817e-34;

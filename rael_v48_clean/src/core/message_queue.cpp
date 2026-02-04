@@ -741,9 +741,9 @@ void DeadLetterQueue::clear() {
 //  EVENT BUS
 // ═══════════════════════════════════════════════════════════════════════════
 
-EventBus::EventBus() {}
+PubSubBus::PubSubBus() {}
 
-std::string EventBus::on(const std::string& event, EventHandler handler) {
+std::string PubSubBus::on(const std::string& event, EventHandler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     Listener l;
@@ -755,7 +755,7 @@ std::string EventBus::on(const std::string& event, EventHandler handler) {
     return l.id;
 }
 
-std::string EventBus::once(const std::string& event, EventHandler handler) {
+std::string PubSubBus::once(const std::string& event, EventHandler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     Listener l;
@@ -767,7 +767,7 @@ std::string EventBus::once(const std::string& event, EventHandler handler) {
     return l.id;
 }
 
-void EventBus::off(const std::string& subscription_id) {
+void PubSubBus::off(const std::string& subscription_id) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     for (auto& [_, listeners] : listeners_) {
@@ -783,12 +783,12 @@ void EventBus::off(const std::string& subscription_id) {
         any_listeners_.end());
 }
 
-void EventBus::off_all(const std::string& event) {
+void PubSubBus::off_all(const std::string& event) {
     std::lock_guard<std::mutex> lock(mutex_);
     listeners_.erase(event);
 }
 
-void EventBus::emit(const std::string& event, const MessagePayload& data) {
+void PubSubBus::emit(const std::string& event, const MessagePayload& data) {
     std::vector<Listener> to_call;
     std::vector<std::string> to_remove;
 
@@ -828,13 +828,13 @@ void EventBus::emit(const std::string& event, const MessagePayload& data) {
     }
 }
 
-void EventBus::emit_async(const std::string& event, const MessagePayload& data) {
+void PubSubBus::emit_async(const std::string& event, const MessagePayload& data) {
     std::thread([this, event, data]() {
         emit(event, data);
     }).detach();
 }
 
-void EventBus::emit_delayed(const std::string& event, const MessagePayload& data,
+void PubSubBus::emit_delayed(const std::string& event, const MessagePayload& data,
                              std::chrono::milliseconds delay) {
     std::thread([this, event, data, delay]() {
         std::this_thread::sleep_for(delay);
@@ -842,7 +842,7 @@ void EventBus::emit_delayed(const std::string& event, const MessagePayload& data
     }).detach();
 }
 
-std::string EventBus::on_any(EventHandler handler) {
+std::string PubSubBus::on_any(EventHandler handler) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     Listener l;
@@ -854,7 +854,7 @@ std::string EventBus::on_any(EventHandler handler) {
     return l.id;
 }
 
-size_t EventBus::listener_count(const std::string& event) const {
+size_t PubSubBus::listener_count(const std::string& event) const {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = listeners_.find(event);
     if (it != listeners_.end()) {
@@ -863,7 +863,7 @@ size_t EventBus::listener_count(const std::string& event) const {
     return 0;
 }
 
-std::vector<std::string> EventBus::events() const {
+std::vector<std::string> PubSubBus::events() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> result;
     for (const auto& [event, _] : listeners_) {
@@ -878,7 +878,7 @@ std::vector<std::string> EventBus::events() const {
 
 MessageBroker::MessageBroker(const BrokerConfig& config)
     : config_(config)
-    , event_bus_(std::make_unique<EventBus>())
+    , event_bus_(std::make_unique<PubSubBus>())
     , dlq_(std::make_unique<DeadLetterQueue>())
     , started_(std::chrono::system_clock::now()) {}
 
@@ -1062,7 +1062,7 @@ std::string MessageBroker::subscribe(const std::string& queue, MessageHandler ha
     return config.consumer_tag;
 }
 
-EventBus& MessageBroker::events() {
+PubSubBus& MessageBroker::events() {
     return *event_bus_;
 }
 

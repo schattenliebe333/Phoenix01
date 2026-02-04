@@ -24,8 +24,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 BIN_DIR="$ROOT_DIR/bin"
 
-# Check if binary exists
-if [ ! -f "$BIN_DIR/rael_chat" ]; then
+# Check if unified binary exists (preferred), fallback to rael_chat
+BINARY_NAME="rael_unified"
+if [ ! -f "$BIN_DIR/rael_unified" ]; then
+    BINARY_NAME="rael_chat"
+fi
+
+if [ ! -f "$BIN_DIR/$BINARY_NAME" ]; then
     echo -e "${YELLOW}[BUILD] rael_chat nicht gefunden, kompiliere...${NC}"
     cd "$SCRIPT_DIR"
 
@@ -81,14 +86,13 @@ else
 fi
 
 # Copy binary
-echo -e "${YELLOW}[COPY] Kopiere rael_chat nach $INSTALL_DIR/rael${NC}"
-cp "$BIN_DIR/rael_chat" "$INSTALL_DIR/rael"
+echo -e "${YELLOW}[COPY] Kopiere $BINARY_NAME nach $INSTALL_DIR/rael${NC}"
+cp "$BIN_DIR/$BINARY_NAME" "$INSTALL_DIR/rael"
 chmod +x "$INSTALL_DIR/rael"
 
-# Also create symlink for 'rael_chat' if desired
-if [ ! -f "$INSTALL_DIR/rael_chat" ]; then
-    ln -sf "$INSTALL_DIR/rael" "$INSTALL_DIR/rael_chat" 2>/dev/null || true
-fi
+# Create symlinks for alternative names
+ln -sf "$INSTALL_DIR/rael" "$INSTALL_DIR/rael_unified" 2>/dev/null || true
+ln -sf "$INSTALL_DIR/rael" "$INSTALL_DIR/rael_chat" 2>/dev/null || true
 
 # Update PATH if needed (user installation only)
 if [ -n "$SHELL_RC" ] && [ "$EUID" -ne 0 ]; then
