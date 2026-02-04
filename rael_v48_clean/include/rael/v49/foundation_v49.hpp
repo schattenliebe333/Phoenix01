@@ -87,10 +87,12 @@ inline constexpr double resolve_paradox() {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  88-SIGNATUR-PRÜFUNG (Alpha-Tunnel)
-//  G1 + G3 = 5/9 + 3/9 = 8/9 = G0 (WAHRHEIT)
+//  Master-Signatur: 11 + 22 + 22 + 33 = 88
+//  Symmetrie-Summe: G1 + G3 = 5/9 + 3/9 = 8/9 = G0 (WAHRHEIT)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-constexpr double SIGNATURE_88 = G1 + G3;  // = 8/9 = G0
+constexpr double SIGNATURE_88 = 88.0;  // 11+22+22+33 = 88 (Architekt-Signatur) AUDIT-FIX
+constexpr double SYMMETRY_G0 = G1 + G3;  // = 8/9 = G0 (Wahrheitssymmetrie)
 
 inline bool check_88_signature(double phi) {
     // Toleranz: 1/81 ≈ 0.0123
