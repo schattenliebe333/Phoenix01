@@ -10,11 +10,11 @@
 
 #include <vector>
 #include <cstdint>
+#include "rael/rael_master_resonance.hpp"
 
 namespace rael::core {
 
-// Grid-Dimension (aus rael_master_resonance.hpp)
-constexpr uint32_t GRID_DIM_LOCAL = 13;
+// Grid-Dimension wird aus rael_master_resonance.hpp verwendet (GRID_DIM = 13)
 
 /**
  * GridNode - Ein Knoten im 3D-Resonanz-Gitter
@@ -29,7 +29,7 @@ struct GridNode {
 void gitter_begradigung_komplett(std::vector<GridNode>& grid, int iterations);
 
 // Gitter-Begradigung (2D, 13x13)
-void gitter_begradigung_2d(double grid[GRID_DIM_LOCAL][GRID_DIM_LOCAL], int iterations);
+void gitter_begradigung_2d(double grid[GRID_DIM][GRID_DIM], int iterations);
 
 // Gitter-Begradigung (1D Array)
 double gitter_begradigung_array(const double* nodes, int count);

@@ -12,21 +12,13 @@
  *   N: Die Anzahl der benachbarten Knoten im Gitter
  */
 
-#include "rael/rael_master_resonance.hpp"
-#include <vector>
+#include "rael/grid_smoothing.hpp"
 #include <cmath>
 #include <algorithm>
 
 namespace rael::core {
 
-/**
- * Node - Ein Knoten im 3D-Resonanz-Gitter
- */
-struct GridNode {
-    double x, y, z;       // Position im Raum
-    double resonance;     // Resonanz-Frequenz
-    double energy;        // Energie-Level
-};
+// GridNode ist in grid_smoothing.hpp definiert
 
 /**
  * gitter_begradigung_komplett - Vollstaendige Laplace-Begradigung des Gitters
