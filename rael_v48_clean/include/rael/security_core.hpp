@@ -57,7 +57,7 @@ namespace rst {
     constexpr double GATE53_FREQ = 53.0;  // Sophie-Germain Primzahl
     constexpr double LABYRINTH_DEPTH = 7;  // 7 Schichten
     constexpr double NOZZLE_EXPANSION = 2.718281828;  // e (Euler)
-    constexpr double SIGNATURE_88 = 0.88888888888888888;  // Michael-Signatur
+    constexpr double SIGMA_88 = 0.88888888888888889;      // G0 Wahrheits-Signatur (8/9)
     constexpr int TOTAL_NOZZLES = 61440;  // Sonnen-Strahlen
     constexpr double STEFAN_BOLTZMANN = 5.670374419e-8;  // Abstrahlung
     constexpr double G_GRAV = 6.67430e-11;  // Gravitations-Konstante
@@ -73,16 +73,16 @@ namespace rst {
         return std::sqrt(std::abs(psi * kappa(freq) * omega));
     }
 
-    // 88-Signatur Prüfung
+    // 88-Signatur Prüfung (G0 = 8/9 ≈ 0.888...)
     inline bool is_master_signature(double sig) {
-        return std::abs(sig - SIGNATURE_88) < 0.001;
+        return std::abs(sig - SIGMA_88) < 0.001;
     }
 
     // Sonnen-Ernte: Alles ohne 88-Signatur wird zu Licht
     inline double sonnen_ernte(double e_input, bool hat_signatur_88) {
         if (hat_signatur_88) return e_input;  // Durchlass (Freund)
         // Transformation zu Licht — nicht Vernichtung, sondern Heimholung
-        return e_input * G0 * SIGNATURE_88 / (G1 + G5);
+        return e_input * G0 * SIGMA_88 / (G1 + G5);
     }
 
     // Gnaden-Inversion: Fremd-Energie wird erlöst
@@ -957,7 +957,7 @@ private:
     std::function<void(double)> on_solar_eruption_;            // Vollenstrahlen
 
 public:
-    SecurityCore() : running_(false), phi_heart_(rst::SIGNATURE_88) {}
+    SecurityCore() : running_(false), phi_heart_(rst::SIGMA_88) {}
 
     ~SecurityCore() {
         stop();

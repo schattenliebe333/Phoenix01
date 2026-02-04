@@ -116,7 +116,7 @@ constexpr double SIGMA_88 = 0.88888888888888889;
 constexpr double P_TUNNEL_ARCHITECT = 1.00000000000000000;
 
 // Phasen-Synchronitäts-Gewinn: exp(r × G0) bei r=1
-constexpr double G_TUNNEL_GAIN = 2.43280931416225840;  // e^(8/9)
+constexpr double G_TUNNEL_GAIN = 2.43242545428720769;  // e^(8/9)
 
 // "Ich Bin" Identitäts-Frequenz
 // f_ichbin = G0 * 1440 / (G1 + G3 + G5) = 1280 Hz
@@ -7742,6 +7742,105 @@ inline bool absolute_kohaerenz(double drift) {
 // Alle Bedingungen für SOUVERÄN-Status
 inline bool is_souveraen(double a2, double drift, int manifestierte_files) {
     return T_active(a2) && absolute_kohaerenz(drift) && manifestierte_files > 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ABWÄRTSKOMPATIBILITÄTS-ALIASE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Alias: delta_G_n → delta_G_n_precise
+inline double delta_G_n(int n, double summe_nodes) {
+    return delta_G_n_precise(n, summe_nodes);
+}
+
+// Alias: delta_G_n mit 3 Parametern (ignoriert nodes array)
+inline double delta_G_n(int n, const double* /*nodes*/, int node_count) {
+    return delta_G_n_precise(n, static_cast<double>(node_count));
+}
+
+// Alias: FLOW_MAX → FLOW_MAX_PRECISE
+constexpr double FLOW_MAX = FLOW_MAX_PRECISE;
+constexpr double FLOW_MAX_CORRECT = FLOW_MAX_PRECISE;
+
+// Alias: R_bio_n → R_bio_n_precise
+inline double R_bio_n(int n) {
+    return R_bio_n_precise(n);
+}
+
+// Alias: net_kaskade_praezis → net_n_precise
+inline double net_kaskade_praezis(double net_prev, double rauschen, double dt) {
+    return net_n_precise(net_prev, rauschen, dt);
+}
+
+// Alias: omega_n_praezis → omega_n_gemini
+inline double omega_n_praezis(double omega_prev, double s) {
+    return omega_n_gemini(omega_prev, s);
+}
+
+// Alias: trigger_0_praezis → trigger_0_gemini
+inline bool trigger_0_praezis(double absicht, double realitaet) {
+    return trigger_0_gemini(absicht, realitaet);
+}
+
+// Alias: omega_1000_praezis → omega_1000_gemini
+inline double omega_1000_praezis(double sigma_50, double m_s, double s) {
+    return omega_1000_gemini(sigma_50, m_s, s);
+}
+
+// Fehlende Hilfsfunktionen für wahrheit_iter.cpp
+inline double gitter_begradigung_komplett(const double* nodes, int count) {
+    double summe = 0.0;
+    for (int i = 0; i < count; ++i) summe += nodes[i];
+    double total = 0.0;
+    for (int n = 0; n < 1440; ++n) {
+        total += delta_G_n_precise(n, summe);
+    }
+    return total;
+}
+
+inline double bio_resonanz_komplett() {
+    double summe = 0.0;
+    for (int n = 0; n < 840; ++n) {
+        summe += R_bio_n_precise(n);
+    }
+    return summe / 840.0;
+}
+
+inline double immunsystem_kaskade(double net_start, double rauschen, double dt) {
+    double net = net_start;
+    for (int i = 0; i < 70; ++i) {
+        net = net_n_precise(net, rauschen, dt);
+    }
+    return net;
+}
+
+inline double singularitaet_annaeherung(double omega_start, double m_s, double s_start) {
+    double omega = omega_start;
+    double s = s_start;
+    for (int i = 0; i < 37; ++i) {
+        omega = omega_n_gemini(omega, s);
+        s *= 0.1;  // Annäherung an 0
+    }
+    return omega;
+}
+
+inline bool verify_phoenix_punkt(double omega_1000) {
+    // Phoenix-Punkt ist erreicht wenn omega_1000 > 88 × 10000
+    return omega_1000 > SIGNATURE_88 * 10000.0;
+}
+
+inline double sigma_1000_final() {
+    return G0;  // Rückkehr zur Wahrheit
+}
+
+// #821: G_comp = (f_gate × G0) / (sigma_40 + phi_heart)
+inline double G_comp(double f_gate, double sigma_40, double phi_heart) {
+    return (f_gate * G0) / (sigma_40 + phi_heart);
+}
+
+// #822: Phase_async = sin(t × 1.44) × G5
+inline double phase_async(double t) {
+    return std::sin(t * 1.44) * G5;
 }
 
 } // namespace rst
