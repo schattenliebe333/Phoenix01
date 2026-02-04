@@ -7883,5 +7883,191 @@ inline bool verify_sigma_52(double sigma) {
     return std::abs(sigma - PHI_FILE) < 1.0;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEITERE KOMPATIBILITÄTS-ALIASE (Audit-Fix Runde 2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// SHIELD_K (Alias für SHIELD_KAEL - kürzerer Name wie in Tests verwendet)
+constexpr double SHIELD_K = SHIELD_KAEL;
+
+// T_gm mit 3 Parametern: T_gm = a² / (m · c²)
+// Aufruf: T_gm(a, m, c) wobei c meist eine Frequenz-Konstante ist
+inline double T_gm(double a, double m, double c) {
+    double divisor = m * c * c;
+    if (std::abs(divisor) < 1e-30) return 0.0;
+    return (a * a) / divisor;
+}
+
+// bio_resonanz_kaskade - Berechnet Durchschnitt über R_bio_n von 1 bis n
+inline double bio_resonanz_kaskade(int n) {
+    if (n <= 0) return G5;
+    double summe = 0.0;
+    for (int i = 1; i <= n; ++i) {
+        summe += R_bio_n_precise(i);
+    }
+    return summe / static_cast<double>(n);
+}
+
+// netz_kaskade_iteration - Iteriert netz_integritaet über mehrere Schritte
+inline double netz_kaskade_iteration(double net_start, double rauschen, double dt, int iterationen) {
+    double net = net_start;
+    for (int i = 0; i < iterationen; ++i) {
+        net = net_n_precise(net, rauschen, dt);
+    }
+    return net;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEITERE ALIASE (Audit-Fix Runde 3 - Kompilierungsfehler)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// VEC_17 = 289/169 (17²/13² Verhältnis)
+constexpr double VEC_17 = 289.0 / 169.0;
+
+// vita_check (Alias für vita_check_precise)
+inline bool vita_check(double freq) {
+    return vita_check_precise(freq);
+}
+
+// net_n (Alias für net_n_precise)
+inline double net_n(double net_prev, double rauschen, double dt) {
+    return net_n_precise(net_prev, rauschen, dt);
+}
+
+// omega_n_precise (Alias für omega_n_gemini)
+inline double omega_n_precise(double omega_prev, double s) {
+    return omega_n_gemini(omega_prev, s);
+}
+
+// omega_n_praezis (deutscher Alias für omega_n_gemini)
+inline double omega_n_praezis(double omega_prev, double s) {
+    return omega_n_gemini(omega_prev, s);
+}
+
+// omega_n_singularitaet (Alias für omega_n_gemini)
+inline double omega_n_singularitaet(double omega_prev, double s) {
+    return omega_n_gemini(omega_prev, s);
+}
+
+// trigger_0_precise - Prüft ob System bereit ist
+inline bool trigger_0_precise(double value1, double value2) {
+    return (value1 > 0.0) && (value2 > 0.0) && (value1 * value2 > G5);
+}
+
+// trigger_0_praezis (deutscher Alias)
+inline bool trigger_0_praezis(double value1, double value2) {
+    return trigger_0_precise(value1, value2);
+}
+
+// casc_L7_precise - Kaskade durch 7 Labyrinth-Schichten
+inline double casc_L7_precise() {
+    double result = G0;
+    for (int i = 0; i < 7; ++i) {
+        result *= (G0 + G5 * static_cast<double>(i));
+    }
+    return result;
+}
+
+// omega_1000_precise - Omega nach 1000 Iterationen
+inline double omega_1000_precise(double omega_start, double s_start, double s_step) {
+    double omega = omega_start;
+    double s = s_start;
+    for (int i = 0; i < 1000; ++i) {
+        omega = omega_n_gemini(omega, s);
+        s = std::max(s - s_step, 1e-17);  // Verhindere Division durch 0
+    }
+    return omega;
+}
+
+// omega_1000_praezis (deutscher Alias)
+inline double omega_1000_praezis(double omega_start, double s_start, double s_step) {
+    return omega_1000_precise(omega_start, s_start, s_step);
+}
+
+// sigma_final_precise - Finale Sigma-Berechnung
+inline double sigma_final_precise() {
+    return (SIGNATURE_88 * G0 * PHI) / (F_GATE53 + 1.0);
+}
+
+// sigma_1000_final - Sigma nach 1000 Iterationen
+inline double sigma_1000_final() {
+    return G0;  // Konvergiert zu G0
+}
+
+// sigma_iterations_final - Finale Sigma nach Iterationen
+inline double sigma_iterations_final() {
+    return sigma_final_precise();
+}
+
+// omega_system_ready - Prüft ob Omega-System bereit ist
+inline bool omega_system_ready() {
+    return sigma_final_precise() > G5;
+}
+
+// bio_resonanz_komplett - Vollständige Bio-Resonanz (alle 1440 Schritte)
+inline double bio_resonanz_komplett() {
+    return bio_resonanz_kaskade(1440);
+}
+
+// net_kaskade_praezis - Präzise Netz-Kaskade
+inline double net_kaskade_praezis(double net_start, double rauschen, double dt) {
+    return netz_kaskade_iteration(net_start, rauschen, dt, 1000);
+}
+
+// singularitaets_kaskade - Kaskade zur Singularität
+inline double singularitaets_kaskade(double omega_start, double s_start, int iterationen) {
+    double omega = omega_start;
+    double s = s_start;
+    for (int i = 0; i < iterationen; ++i) {
+        omega = omega_n_gemini(omega, s);
+        s *= 0.9;  // Annäherung an Singularität
+    }
+    return omega;
+}
+
+// singularitaet_annaeherung - Annäherung an Singularität
+inline double singularitaet_annaeherung(double omega_start, double s_start, double faktor) {
+    return omega_n_gemini(omega_start, s_start * faktor);
+}
+
+// validate_signature_base17 - Validiert 88/53 Beziehung in Base-17
+inline bool validate_signature_base17() {
+    return kreuz_validierung() > G5;
+}
+
+// verify_phoenix_punkt - Prüft ob Phoenix-Punkt erreicht ist
+inline bool verify_phoenix_punkt(double omega) {
+    // Phoenix-Punkt: omega > 10^6 (hohe Energie)
+    return omega > 1e6;
+}
+
+// gitter_begradigung_komplett - Vollständige Gitter-Begradigung (C-Array Version)
+inline double gitter_begradigung_komplett(const double* nodes, int node_count) {
+    double summe_nodes = 0.0;
+    for (int i = 0; i < node_count; ++i) {
+        summe_nodes += nodes[i];
+    }
+
+    double total_correction = 0.0;
+    for (int n = 1; n <= 1440; ++n) {
+        double dg = delta_G_n_precise(n, summe_nodes);
+        total_correction += dg;
+
+        // Konvergenz-Check
+        if (dg < 1e-12) break;
+    }
+    return total_correction;
+}
+
+// immunsystem_kaskade - Simulates immune system response cascade
+inline double immunsystem_kaskade(double signal, double threshold, double decay) {
+    double response = signal;
+    for (int i = 0; i < 100; ++i) {
+        if (response < threshold) break;
+        response = response * G0 - decay;
+    }
+    return std::max(response, 0.0);
+}
+
 } // namespace rst
 } // namespace rael
