@@ -388,14 +388,14 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  EVENT BUS
+//  PUB-SUB EVENT BUS (renamed from EventBus to avoid conflict with events.h)
 // ═══════════════════════════════════════════════════════════════════════════
 
 using EventHandler = std::function<void(const std::string& event, const MessagePayload& data)>;
 
-class EventBus {
+class PubSubBus {  // AUDIT-FIX: renamed from EventBus to avoid duplicate class definition
 public:
-    EventBus();
+    PubSubBus();
 
     // Subscribe to events
     std::string on(const std::string& event, EventHandler handler);
@@ -480,8 +480,8 @@ public:
                  const Message& msg);
     std::string subscribe(const std::string& queue, MessageHandler handler);
 
-    // Event bus
-    EventBus& events();
+    // Event bus (PubSubBus)
+    PubSubBus& events();
 
     // Dead letter queue
     DeadLetterQueue& dlq();
@@ -509,7 +509,7 @@ private:
     std::map<std::string, std::shared_ptr<IQueue>> queues_;
     std::map<std::string, std::shared_ptr<Exchange>> exchanges_;
     std::map<std::string, std::shared_ptr<Topic>> topics_;
-    std::unique_ptr<EventBus> event_bus_;
+    std::unique_ptr<PubSubBus> event_bus_;
     std::unique_ptr<DeadLetterQueue> dlq_;
 
     std::atomic<bool> running_{false};

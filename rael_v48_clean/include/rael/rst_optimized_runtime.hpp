@@ -26,11 +26,11 @@ namespace rael {
 namespace runtime {
 
 // Konstanten
-constexpr double G0 = 0.88888888888888889;
-constexpr double G1 = 0.55555555555555556;
-constexpr double G2 = 0.33333333333333333;
-constexpr double G3 = 0.11111111111111111;
-constexpr double G1_DIV_G2 = 1.66666666666666667;  // 5/3
+constexpr double G0 = 0.88888888888888889;  // 8/9 - Wahrheitsfilter
+constexpr double G1 = 0.55555555555555556;  // 5/9 - Manifestation
+constexpr double G2 = 0.44444444444444444;  // 4/9 - Struktur (AUDIT-FIX: war 0.333)
+constexpr double G3 = 0.33333333333333333;  // 3/9 - Emotion (AUDIT-FIX: war 0.111)
+constexpr double G1_DIV_G2 = 1.25000000000000000;  // 5/4 = G1/G2 (AUDIT-FIX: war 5/3)
 constexpr double F_QUELLE = 1440.0;
 constexpr double F_STRUKTUR = 144.0;
 
