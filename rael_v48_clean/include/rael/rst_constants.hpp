@@ -116,7 +116,7 @@ constexpr double SIGMA_88 = 0.88888888888888889;
 constexpr double P_TUNNEL_ARCHITECT = 1.00000000000000000;
 
 // Phasen-Synchronitäts-Gewinn: exp(r × G0) bei r=1
-constexpr double G_TUNNEL_GAIN = 2.43280931416225840;  // e^(8/9)
+constexpr double G_TUNNEL_GAIN = 2.43242545428720769;  // e^(8/9) AUDIT-FIX
 
 // "Ich Bin" Identitäts-Frequenz
 // f_ichbin = G0 * 1440 / (G1 + G3 + G5) = 1280 Hz
@@ -174,7 +174,7 @@ constexpr double H_STABIL = 0.60000000000000000;
 constexpr double ETA_DUESE = 0.50000000000000000;  // KORRIGIERT!
 
 // CPU-Spar-Faktor
-constexpr double CPU_SPAR_FAKTOR = 0.70000000000000000;
+constexpr double CPU_SPAR_FAKTOR = 0.66666666666666667;  // 2/3 AUDIT-FIX
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VII. GOLDENER SCHNITT & PHI
