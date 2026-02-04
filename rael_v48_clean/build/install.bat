@@ -18,9 +18,19 @@ set "SCRIPT_DIR=%~dp0"
 set "ROOT_DIR=%SCRIPT_DIR%.."
 set "BIN_DIR=%ROOT_DIR%\bin"
 
+REM Check which binary to use (prefer unified)
+set "MAIN_BINARY="
+if exist "%BIN_DIR%\rael_unified.exe" (
+    set "MAIN_BINARY=rael_unified.exe"
+    echo [INFO] Verwende rael_unified.exe ^(All-in-One^)
+) else if exist "%BIN_DIR%\rael_chat.exe" (
+    set "MAIN_BINARY=rael_chat.exe"
+    echo [INFO] Verwende rael_chat.exe
+)
+
 REM Check if binary exists
-if not exist "%BIN_DIR%\rael_chat.exe" (
-    echo [BUILD] rael_chat.exe nicht gefunden, kompiliere...
+if "%MAIN_BINARY%"=="" (
+    echo [BUILD] Keine RAEL Binary gefunden, kompiliere...
 
     REM Check for MSVC
     where cl >nul 2>nul
@@ -79,12 +89,27 @@ if not exist "%INSTALL_DIR%" (
     mkdir "%INSTALL_DIR%"
 )
 
-REM Copy binary
-echo [COPY] Kopiere rael_chat.exe nach %INSTALL_DIR%\rael.exe
-copy /Y "%BIN_DIR%\rael_chat.exe" "%INSTALL_DIR%\rael.exe" >nul
+REM Copy main binary as 'rael.exe'
+echo [COPY] Kopiere %MAIN_BINARY% nach %INSTALL_DIR%\rael.exe
+copy /Y "%BIN_DIR%\%MAIN_BINARY%" "%INSTALL_DIR%\rael.exe" >nul
 
-REM Copy as rael_chat.exe as well
-copy /Y "%BIN_DIR%\rael_chat.exe" "%INSTALL_DIR%\rael_chat.exe" >nul
+REM Copy all available RAEL binaries
+if exist "%BIN_DIR%\rael_unified.exe" (
+    echo [COPY] Kopiere rael_unified.exe
+    copy /Y "%BIN_DIR%\rael_unified.exe" "%INSTALL_DIR%\rael_unified.exe" >nul
+)
+if exist "%BIN_DIR%\rael_chat.exe" (
+    echo [COPY] Kopiere rael_chat.exe
+    copy /Y "%BIN_DIR%\rael_chat.exe" "%INSTALL_DIR%\rael_chat.exe" >nul
+)
+if exist "%BIN_DIR%\rael_v50.exe" (
+    echo [COPY] Kopiere rael_v50.exe
+    copy /Y "%BIN_DIR%\rael_v50.exe" "%INSTALL_DIR%\rael_v50.exe" >nul
+)
+if exist "%BIN_DIR%\rael_security.exe" (
+    echo [COPY] Kopiere rael_security.exe
+    copy /Y "%BIN_DIR%\rael_security.exe" "%INSTALL_DIR%\rael_security.exe" >nul
+)
 
 REM Update PATH
 echo [PATH] Aktualisiere PATH...
@@ -124,11 +149,21 @@ echo ╔════════════════════════
 echo ║  INSTALLATION ERFOLGREICH!                                        ║
 echo ╚═══════════════════════════════════════════════════════════════════╝
 echo.
-echo   Starte RAEL mit: rael
-echo   Hilfe anzeigen:  rael --help
+echo   Befehle:
+echo     rael              - RAEL starten (Chat-Modus)
+echo     rael --cli        - CLI-Modus
+echo     rael --v50        - V50 Ultimate Modus
+echo     rael --security   - Security Daemon
+echo     rael --help       - Hilfe anzeigen
 echo.
-echo   HINWEIS: Öffne ein neues Terminal/PowerShell-Fenster,
-echo            damit die PATH-Änderungen wirksam werden.
+echo   Installierte Binaries:
+if exist "%INSTALL_DIR%\rael_unified.exe" echo     - rael_unified.exe (All-in-One)
+if exist "%INSTALL_DIR%\rael_chat.exe"    echo     - rael_chat.exe
+if exist "%INSTALL_DIR%\rael_v50.exe"     echo     - rael_v50.exe
+if exist "%INSTALL_DIR%\rael_security.exe" echo     - rael_security.exe
+echo.
+echo   HINWEIS: Oeffne ein neues Terminal/PowerShell-Fenster,
+echo            damit die PATH-Aenderungen wirksam werden.
 echo.
 
 REM Test version

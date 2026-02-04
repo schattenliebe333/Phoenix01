@@ -66,6 +66,49 @@ if exist "%ROOT%\src\cli\rael_chat.cpp" (
   echo [build] RAEL Chat CLI compiled
 )
 
+REM RAEL Unified (All-in-One: Chat + CLI + V50 + Security)
+echo [build] RAEL Unified -> %OUT%\rael_unified.exe
+set UNIFIED_SOURCES=^
+ "%ROOT%\src\core\util.cpp" ^
+ "%ROOT%\src\core\telemetry.cpp" ^
+ "%ROOT%\src\core\metrics.cpp" ^
+ "%ROOT%\src\core\events.cpp" ^
+ "%ROOT%\src\core\improvements.cpp" ^
+ "%ROOT%\src\core\lane_scheduler.cpp" ^
+ "%ROOT%\src\core\star8.cpp" ^
+ "%ROOT%\src\core\ethics.cpp" ^
+ "%ROOT%\src\core\ichbin.cpp" ^
+ "%ROOT%\src\core\mathcore.cpp" ^
+ "%ROOT%\src\core\semantic.cpp" ^
+ "%ROOT%\src\core\resonance.cpp" ^
+ "%ROOT%\src\core\module_manager.cpp" ^
+ "%ROOT%\src\core\hotswap.cpp" ^
+ "%ROOT%\src\core\voice.cpp" ^
+ "%ROOT%\src\core\raelcore.cpp" ^
+ "%ROOT%\src\cli\rael_unified.cpp"
+
+if exist "%ROOT%\src\cli\rael_unified.cpp" (
+  cl %CL% %UNIFIED_SOURCES% /Fe:"%OUT%\rael_unified.exe" ole32.lib sapi.lib
+  if errorlevel 1 echo [WARN] rael_unified build failed, continuing...
+  echo [build] RAEL Unified compiled
+)
+
+REM RAEL V50 Ultimate
+echo [build] RAEL V50 -> %OUT%\rael_v50.exe
+if exist "%ROOT%\src\windows\rael_v50_windows.cpp" (
+  cl %CL% "%ROOT%\src\windows\rael_v50_windows.cpp" /Fe:"%OUT%\rael_v50.exe"
+  if errorlevel 1 echo [WARN] rael_v50 build failed, continuing...
+  echo [build] RAEL V50 compiled
+)
+
+REM RAEL Security Daemon
+echo [build] RAEL Security -> %OUT%\rael_security.exe
+if exist "%ROOT%\src\security\rael_security_daemon.cpp" (
+  cl %CL% "%ROOT%\src\security\rael_security_daemon.cpp" /Fe:"%OUT%\rael_security.exe"
+  if errorlevel 1 echo [WARN] rael_security build failed, continuing...
+  echo [build] RAEL Security compiled
+)
+
 echo [build] modules -> %MODOUT%
 
 REM semantic module dll
