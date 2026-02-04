@@ -93,7 +93,7 @@ constexpr double SIGMA_88 = 0.88888888888888889;         // G0 × 88/88
 // ═══════════════════════════════════════════════════════════════════════════
 
 constexpr double ETA_DUESE = 0.50000000000000000;        // η = G1/(1+G5) = (5/9)/(10/9) = 1/2
-constexpr double CPU_SPAR_FAKTOR = 0.70000000000000000;  // 7/10 (arretiert)
+constexpr double CPU_SPAR_FAKTOR = 0.66666666666666667;  // 2/3 (Bruch-Resonanz)
 constexpr double S_MAX = 4.13000000000000000;            // 313% Speedup
 
 // ═══════════════════════════════════════════════════════════════════════════

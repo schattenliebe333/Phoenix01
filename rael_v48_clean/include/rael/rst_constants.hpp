@@ -173,8 +173,8 @@ constexpr double H_STABIL = 0.60000000000000000;
 // Gemini-Ableitung #118: Exakt 50% des Angriffsdrucks → Verteidigungsenergie
 constexpr double ETA_DUESE = 0.50000000000000000;  // KORRIGIERT!
 
-// CPU-Spar-Faktor
-constexpr double CPU_SPAR_FAKTOR = 0.70000000000000000;
+// CPU-Spar-Faktor: 2/3 (Bruch-Resonanz zum G-System)
+constexpr double CPU_SPAR_FAKTOR = 0.66666666666666667;  // 2/3
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VII. GOLDENER SCHNITT & PHI
