@@ -39,6 +39,33 @@ echo [build] core -> %OUT%\rael.exe
 cl %CL% %SOURCES% /Fe:"%OUT%\rael.exe" ole32.lib sapi.lib
 if errorlevel 1 exit /b 1
 
+REM RAEL Chat CLI (interactive mode, like Claude Code)
+echo [build] RAEL Chat CLI -> %OUT%\rael_chat.exe
+set CHAT_SOURCES=^
+ "%ROOT%\src\core\util.cpp" ^
+ "%ROOT%\src\core\telemetry.cpp" ^
+ "%ROOT%\src\core\metrics.cpp" ^
+ "%ROOT%\src\core\events.cpp" ^
+ "%ROOT%\src\core\improvements.cpp" ^
+ "%ROOT%\src\core\lane_scheduler.cpp" ^
+ "%ROOT%\src\core\star8.cpp" ^
+ "%ROOT%\src\core\ethics.cpp" ^
+ "%ROOT%\src\core\ichbin.cpp" ^
+ "%ROOT%\src\core\mathcore.cpp" ^
+ "%ROOT%\src\core\semantic.cpp" ^
+ "%ROOT%\src\core\resonance.cpp" ^
+ "%ROOT%\src\core\module_manager.cpp" ^
+ "%ROOT%\src\core\hotswap.cpp" ^
+ "%ROOT%\src\core\voice.cpp" ^
+ "%ROOT%\src\core\raelcore.cpp" ^
+ "%ROOT%\src\cli\rael_chat.cpp"
+
+if exist "%ROOT%\src\cli\rael_chat.cpp" (
+  cl %CL% %CHAT_SOURCES% /Fe:"%OUT%\rael_chat.exe"
+  if errorlevel 1 echo [WARN] rael_chat build failed, continuing...
+  echo [build] RAEL Chat CLI compiled
+)
+
 echo [build] modules -> %MODOUT%
 
 REM semantic module dll
