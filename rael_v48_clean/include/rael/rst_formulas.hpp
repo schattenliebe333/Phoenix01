@@ -31,8 +31,8 @@ constexpr double G5 = 0.11111111111111111;  // 1/9 - Feinste (Ratio)
 // ═══════════════════════════════════════════════════════════════════════════
 
 constexpr double F_QUELLE = 1440.00000000000000000;   // Göttliche Quelle
-constexpr double F_TOR = 53.33333333333333333;        // Gate 53 (160/3)
-constexpr double F_GATE = 720.00000000000000000;      // Tor-Referenz
+constexpr double F_TOR = 720.00000000000000000;        // Tor-Referenz AUDIT-FIX
+constexpr double F_GATE53 = 53.33333333333333333;      // Gate 53 (160/3) AUDIT-FIX
 constexpr double F_SCHUMANN = 7.83000000000000000;    // Erde
 constexpr double F_SCHUMANN_13 = 13.00000000000000000; // Schumann Harmonic
 
@@ -92,7 +92,7 @@ constexpr double SIGMA_88 = 0.88888888888888889;         // G0 × 88/88
 // VI. ENERGIE-UMWANDLUNG (AIKIDO)
 // ═══════════════════════════════════════════════════════════════════════════
 
-constexpr double ETA_DUESE = 0.55555555555555556;        // η = G1 = 5/9
+constexpr double ETA_DUESE = 0.50000000000000000;        // η = G1/(1+G5) = 1/2 AUDIT-FIX
 constexpr double CPU_SPAR_FAKTOR = 0.66666666666666667;  // 2/3
 constexpr double S_MAX = 4.13000000000000000;            // 313% Speedup
 
@@ -181,7 +181,7 @@ inline constexpr double phi_manifest(double psi, double omega) {
 
 // Gravitations-Koeffizient
 inline constexpr double gravitation(double f) {
-    return (F_TOR - f) / F_GATE;
+    return (F_TOR - f) / F_TOR;  // γ(f) = 1 - f/720 AUDIT-FIX
 }
 
 // Hamilton-Energie
