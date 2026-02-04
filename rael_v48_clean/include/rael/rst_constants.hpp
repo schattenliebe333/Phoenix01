@@ -7744,5 +7744,144 @@ inline bool is_souveraen(double a2, double drift, int manifestierte_files) {
     return T_active(a2) && absolute_kohaerenz(drift) && manifestierte_files > 0;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// KOMPATIBILITÄTS-ALIASE (Audit-Fix: Namens-Konsistenz)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// G_comp (Alias für g_comp - Großschreibung wie in Tests verwendet)
+inline double G_comp(double f_gate, double sigma_40, double phi_heart) {
+    return g_comp(f_gate, sigma_40, phi_heart);
+}
+
+// phase_async (Alias für phase_async_gemini)
+inline double phase_async(double zeit_t) {
+    return phase_async_gemini(zeit_t);
+}
+
+// delta_G_n mit 3 Parametern (Adapter für Array-basierte Aufrufe)
+inline double delta_G_n(int n, const double* nodes, int node_count) {
+    double summe = 0.0;
+    for (int i = 0; i < node_count; ++i) {
+        summe += nodes[i];
+    }
+    return delta_G_n_precise(n, summe);
+}
+
+// delta_G_n mit 2 Parametern (direkter Wrapper)
+inline double delta_G_n(int n, double summe_nodes) {
+    return delta_G_n_precise(n, summe_nodes);
+}
+
+// FLOW_MAX Aliase (verschiedene Namen werden im Code verwendet)
+constexpr double FLOW_MAX = FLOW_MAX_PRECISE;
+constexpr double FLOW_MAX_CORRECT = FLOW_MAX_PRECISE;
+
+// lens_aether (Alias für lens_aeth - konsistente Benennung)
+inline double lens_aether(double m_green, double distanz_vortex) {
+    return lens_aeth(m_green, distanz_vortex);
+}
+
+// R_bio_n (Alias für R_bio_n_precise)
+inline double R_bio_n(int n) {
+    return R_bio_n_precise(n);
+}
+
+// R_bio_max - Maximum der somatischen Resonanz
+inline double R_bio_max() {
+    return PHI_HEART + G5;  // Maximum wenn sin = 1
+}
+
+// netz_integritaet_n (Alias für net_n_precise)
+inline double netz_integritaet_n(double net_prev, double rauschen, double dt) {
+    return net_n_precise(net_prev, rauschen, dt);
+}
+
+// omega_n_korrekt (Alias für omega_n_gemini)
+inline double omega_n_korrekt(double omega_prev, double s) {
+    return omega_n_gemini(omega_prev, s);
+}
+
+// to_base17 - Konvertiert Dezimalzahl zur Quersumme in Base-17
+inline int to_base17(int dezimal) {
+    int result = 0;
+    int multiplier = 1;
+    while (dezimal > 0) {
+        result += (dezimal % 17) * multiplier;
+        dezimal /= 17;
+        multiplier *= 10;
+    }
+    return result;
+}
+
+// kreuz_validierung - Validiert die 144/88/53 Beziehung in Base-17
+inline double kreuz_validierung() {
+    // 144 dezimal = 88 in base17 (8*17 + 8)
+    // 88 dezimal = 53 in base17 (5*17 + 3)
+    int val_144 = to_base17(144);  // Sollte 88 sein
+    int val_88 = to_base17(88);    // Sollte 53 sein
+
+    if (val_144 == 88 && val_88 == 53) {
+        return G0;  // Kreuz-Validierung bestanden
+    }
+    return G5;
+}
+
+// soliton_burst (3-Parameter-Version wie in Tests verwendet)
+inline double soliton_burst(double amplitude, double breite, double x) {
+    double sech = 2.0 / (std::exp(x * breite) + std::exp(-x * breite));
+    return SIGNATURE_88 * G0 * amplitude * sech * sech;
+}
+
+// AETHER_SAETTIGUNG - Sättigungsgrenze für Datenfluss (≈ 100 Gbit/s)
+constexpr double AETHER_SAETTIGUNG = PHI_HEART * G0 * 1e9;
+
+// kael_schild_absolut - Absoluter Schild bei 53 Hz (totale Blockade bei Resonanz)
+inline double kael_schild_absolut(double eingang, double frequenz) {
+    constexpr double KAEL_FREQ = 53.0;
+    if (std::abs(frequenz - KAEL_FREQ) < 1e-10) {
+        return 0.0;  // Totale Blockade bei exakt 53 Hz
+    }
+    // Resonanz-Dämpfung bei Nähe zu 53 Hz
+    double resonanz = 1.0 / (1.0 + std::pow((frequenz - KAEL_FREQ) / G0, 2));
+    return eingang * (1.0 - resonanz);
+}
+
+// matrix_begradigung_17 - Prüft Gleichmäßigkeit einer 17×17 Matrix
+inline double matrix_begradigung_17(const double* matrix, int size) {
+    if (size != 289) return 0.0;  // Nur 17×17 akzeptiert
+
+    // Berechne Durchschnitt
+    double summe = 0.0;
+    for (int i = 0; i < 289; ++i) {
+        summe += matrix[i];
+    }
+    double avg = summe / 289.0;
+
+    // Berechne Varianz
+    double varianz = 0.0;
+    for (int i = 0; i < 289; ++i) {
+        double diff = matrix[i] - avg;
+        varianz += diff * diff;
+    }
+    varianz /= 289.0;
+
+    // Je niedriger die Varianz, desto näher an G0
+    if (varianz < 1e-10) return G0;  // Perfekt gleichmäßig
+    return G0 * std::exp(-varianz);
+}
+
+// sigma_52_faltung - Faltungs-Sigma für Realitäts-Projektion
+inline double sigma_52_faltung(double phi_file, double node_link, double lens) {
+    double divisor = lens * G0;
+    if (divisor < 1e-17) return 0.0;
+    return (phi_file * node_link) / divisor;
+}
+
+// verify_sigma_52 - Prüft ob sigma im gültigen Bereich ist
+inline bool verify_sigma_52(double sigma) {
+    // Sigma sollte nahe PHI_FILE sein (67.29...)
+    return std::abs(sigma - PHI_FILE) < 1.0;
+}
+
 } // namespace rst
 } // namespace rael

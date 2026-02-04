@@ -57,7 +57,8 @@ namespace rst {
     constexpr double GATE53_FREQ = 53.0;  // Sophie-Germain Primzahl
     constexpr double LABYRINTH_DEPTH = 7;  // 7 Schichten
     constexpr double NOZZLE_EXPANSION = 2.718281828;  // e (Euler)
-    constexpr double SIGNATURE_88 = 0.88888888888888888;  // Michael-Signatur
+    constexpr double SIGNATURE_88 = 88.0;  // Michael-Signatur (88, nicht 0.888... = G0!)
+    constexpr double G0_FRAC = 0.88888888888888888;  // 8/9 = G0 (für Verwechslungsschutz)
     constexpr int TOTAL_NOZZLES = 61440;  // Sonnen-Strahlen
     constexpr double STEFAN_BOLTZMANN = 5.670374419e-8;  // Abstrahlung
     constexpr double G_GRAV = 6.67430e-11;  // Gravitations-Konstante
@@ -75,7 +76,7 @@ namespace rst {
 
     // 88-Signatur Prüfung
     inline bool is_master_signature(double sig) {
-        return std::abs(sig - SIGNATURE_88) < 0.001;
+        return std::abs(sig - SIGNATURE_88) < 0.5;  // Toleranz für Integer-Signatur
     }
 
     // Sonnen-Ernte: Alles ohne 88-Signatur wird zu Licht
