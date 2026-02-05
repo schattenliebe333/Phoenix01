@@ -6,8 +6,17 @@ MODOUT="$ROOT/bin/modules"
 mkdir -p "$OUT" "$MODOUT"
 
 CXX="${CXX:-g++}"
-CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include"
-LDFLAGS="-lssl -lcrypto"
+# Security hardening flags (F-01 audit fix)
+# -fstack-protector-strong: Stack buffer overflow protection
+# -D_FORTIFY_SOURCE=2: Buffer overflow detection in string/memory functions
+# -fPIE: Position Independent Executable (enables ASLR)
+# -Wformat -Wformat-security: Format string vulnerability warnings
+SECURITY_FLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security"
+CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include $SECURITY_FLAGS"
+# -pie: Link as PIE (ASLR)
+# -z relro: Partial RELRO (GOT protection)
+# -z now: Full RELRO (immediate binding)
+LDFLAGS="-pie -Wl,-z,relro,-z,now -lssl -lcrypto"
 
 SOURCES=(
   "$ROOT/src/core/util.cpp"

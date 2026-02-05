@@ -2,7 +2,10 @@
 cd "$(dirname "$0")/.."
 
 echo "Building RAEL V4..."
-g++ -std=c++17 -O2 -I./include -o bin/rael src/core/*.cpp src/cli/main.cpp -ldl -lpthread
+# Security hardening flags (F-01 audit fix)
+SECURITY_FLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security"
+LDFLAGS="-pie -Wl,-z,relro,-z,now"
+g++ -std=c++17 -O2 $SECURITY_FLAGS -I./include -o bin/rael src/core/*.cpp src/cli/main.cpp $LDFLAGS -ldl -lpthread
 echo "  bin/rael"
 
 echo "Building modules..."

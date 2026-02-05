@@ -478,11 +478,58 @@ public:
 
     double get_power() const { return defense_power_; }
 
-    // Prozess beenden
+    // SECURITY (F-06 audit fix): Protected PIDs that must never be terminated
+    bool is_protected_pid(uint32_t pid) const {
+        // PID 0: Kernel/Scheduler
+        // PID 1: init/systemd (Linux) or System Idle (Windows)
+        // PID 2: kthreadd (Linux kernel threads)
+        if (pid == 0 || pid == 1 || pid == 2) return true;
+
+        // Get our own PID - never terminate ourselves
+#ifdef _WIN32
+        if (pid == GetCurrentProcessId()) return true;
+        // Get parent process ID
+        HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (hSnap != INVALID_HANDLE_VALUE) {
+            PROCESSENTRY32 pe;
+            pe.dwSize = sizeof(pe);
+            if (Process32First(hSnap, &pe)) {
+                do {
+                    if (pe.th32ProcessID == GetCurrentProcessId()) {
+                        if (pid == pe.th32ParentProcessID) {
+                            CloseHandle(hSnap);
+                            return true;  // Don't kill our parent
+                        }
+                        break;
+                    }
+                } while (Process32Next(hSnap, &pe));
+            }
+            CloseHandle(hSnap);
+        }
+#else
+        if (pid == static_cast<uint32_t>(getpid())) return true;
+        if (pid == static_cast<uint32_t>(getppid())) return true;  // Don't kill parent
+#endif
+        return false;
+    }
+
+    // Prozess beenden (with security validation - F-06 audit fix)
     bool terminate_process(uint32_t pid) {
         std::lock_guard<std::mutex> lock(mtx_);
 
         if (defense_power_ < 0.1) return false;  // Nicht genug Energie
+
+        // SECURITY (F-06 audit fix): Validate PID before termination
+        if (is_protected_pid(pid)) {
+            actions_taken_.push_back("BLOCKED: Attempted to terminate protected PID " + std::to_string(pid));
+            return false;
+        }
+
+        // Additional validation: PID must be in reasonable range
+        if (pid > 4194304) {  // Max PID on most Linux systems
+            actions_taken_.push_back("BLOCKED: Invalid PID " + std::to_string(pid));
+            return false;
+        }
 
 #ifdef _WIN32
         HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
@@ -943,7 +990,11 @@ private:
     NetworkMonitor network_monitor_;
     FileMonitor file_monitor_;
 
+    // SECURITY (F-10 audit fix): Ring buffer with max size to prevent OOM
+    static constexpr size_t MAX_THREAT_LOG_SIZE = 10000;
     std::vector<Threat> threat_log_;
+    size_t threat_log_write_idx_ = 0;  // Ring buffer write index
+    bool threat_log_wrapped_ = false;   // Track if we've wrapped around
     std::atomic<bool> running_;
     std::thread monitor_thread_;
     std::mutex log_mtx_;
@@ -1067,10 +1118,18 @@ public:
             defense_.charge(battery_energy);
         }
 
-        // Logging
+        // Logging (F-10 audit fix: Ring buffer implementation)
         {
             std::lock_guard<std::mutex> lock(log_mtx_);
-            threat_log_.push_back(threat);
+            // Initialize vector if needed
+            if (threat_log_.size() < MAX_THREAT_LOG_SIZE) {
+                threat_log_.push_back(threat);
+            } else {
+                // Ring buffer: overwrite oldest entry
+                threat_log_[threat_log_write_idx_] = threat;
+                threat_log_wrapped_ = true;
+            }
+            threat_log_write_idx_ = (threat_log_write_idx_ + 1) % MAX_THREAT_LOG_SIZE;
         }
 
         // Callback

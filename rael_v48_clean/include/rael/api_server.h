@@ -141,11 +141,20 @@ struct JWTClaims {
 class JWTAuth {
 public:
     JWTAuth(const std::string& secret, const std::string& issuer = "rael");
+    ~JWTAuth();
 
     // Token operations
     std::string generate(const JWTClaims& claims);
     std::optional<JWTClaims> verify(const std::string& token) const;
     bool is_expired(const JWTClaims& claims) const;
+
+    // SECURITY (F-05 audit fix): Token revocation and replay protection
+    void revoke_token(const std::string& jti);
+    bool is_revoked(const std::string& jti) const;
+    void cleanup_expired_revocations();  // Call periodically to free memory
+
+    // SECURITY: Enable/disable replay protection (default: enabled)
+    void set_replay_protection(bool enabled) { replay_protection_enabled_ = enabled; }
 
     // Middleware
     Middleware middleware();
@@ -158,6 +167,15 @@ private:
     std::string secret_;
     std::string issuer_;
     int expiry_seconds_ = 3600;
+
+    // SECURITY (F-05 audit fix): Replay protection
+    bool replay_protection_enabled_ = true;
+    mutable std::mutex revocation_mutex_;
+    // Map of JTI -> expiry time (for cleanup)
+    mutable std::map<std::string, int64_t> revoked_tokens_;
+    // Track used JTIs to prevent replay (cleared on expiry)
+    mutable std::set<std::string> used_jtis_;
+    static constexpr size_t MAX_USED_JTIS = 100000;  // Prevent memory exhaustion
 };
 
 class APIKeyAuth {
@@ -214,13 +232,24 @@ private:
 //  CORS
 // ═══════════════════════════════════════════════════════════════════════════
 
+// SECURITY (F-16 audit fix): Default CORS is restrictive (localhost only)
+// To allow cross-origin requests, explicitly configure allowed_origins
 struct CORSConfig {
-    std::vector<std::string> allowed_origins = {"*"};
+    // SECURITY: Default to localhost only (was "*" which allows CSRF attacks)
+    std::vector<std::string> allowed_origins = {"http://localhost", "http://127.0.0.1"};
     std::vector<std::string> allowed_methods = {"GET", "POST", "PUT", "DELETE", "OPTIONS"};
     std::vector<std::string> allowed_headers = {"Content-Type", "Authorization", "X-API-Key"};
     std::vector<std::string> exposed_headers;
+    // SECURITY: Credentials should only be used with specific origins, not wildcard
     bool allow_credentials = false;
     int max_age = 86400;
+
+    // Helper to create a permissive config (USE WITH CAUTION)
+    static CORSConfig permissive() {
+        CORSConfig cfg;
+        cfg.allowed_origins = {"*"};
+        return cfg;
+    }
 };
 
 class CORS {
@@ -384,8 +413,11 @@ private:
 //  API SERVER
 // ═══════════════════════════════════════════════════════════════════════════
 
+// SECURITY (F-14 audit fix): Default bind address is localhost only
 struct ServerConfig {
-    std::string host = "0.0.0.0";
+    // SECURITY: Default to 127.0.0.1 (localhost only)
+    // Set to "0.0.0.0" explicitly if network access is required
+    std::string host = "127.0.0.1";
     int port = 8080;
     int max_connections = 1000;
     int worker_threads = 4;
@@ -396,6 +428,13 @@ struct ServerConfig {
     std::string swagger_path = "/docs";
     bool enable_websocket = true;
     std::string websocket_path = "/ws";
+
+    // Helper to create a network-accessible config (USE WITH CAUTION)
+    static ServerConfig network_accessible() {
+        ServerConfig cfg;
+        cfg.host = "0.0.0.0";
+        return cfg;
+    }
 };
 
 class APIServer {

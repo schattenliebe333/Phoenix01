@@ -624,14 +624,27 @@ bool ProcessExecutor::is_program_allowed(const std::string& program) const {
         }
     }
 
-    // Legacy mode (basename comparison) - DEPRECATED, use set_allowed_programs_secure()
+    // SECURITY (F-07 audit fix): Legacy mode DISABLED by default
+    // Legacy basename comparison is inherently insecure (allows path spoofing)
+    // To re-enable legacy mode (NOT RECOMMENDED), set RAEL_ALLOW_LEGACY_ALLOWLIST=1
+#ifdef RAEL_ALLOW_LEGACY_ALLOWLIST
+    // Legacy mode (basename comparison) - DEPRECATED and DANGEROUS
+    // WARNING: This mode allows program execution by basename only,
+    // which can be bypassed by placing malicious binaries in PATH
     std::string prog_name = gFileSystem.basename(program);
     for (const auto& allowed : allowed_programs_) {
         if (prog_name == allowed || program == allowed) {
-            EventBus::push("SECURITY_WARN", "Using legacy allowlist (insecure): " + program);
+            EventBus::push("SECURITY_CRITICAL", "DEPRECATED: Legacy allowlist used for: " + program);
             return true;
         }
     }
+#else
+    // Legacy allowlist disabled - log attempt and reject
+    if (!allowed_programs_.empty()) {
+        EventBus::push("SECURITY_BLOCK", "Legacy allowlist disabled (F-07 security fix). "
+                       "Use set_allowed_programs_secure() instead. Blocked: " + program);
+    }
+#endif
     return false;
 }
 

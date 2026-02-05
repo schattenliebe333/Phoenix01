@@ -441,6 +441,23 @@ Middleware JWTAuth::middleware() {
             return HttpResponse::error(HttpStatus::UNAUTHORIZED, "Token expired");
         }
 
+        // SECURITY (F-05 audit fix): Check if token has been revoked
+        if (!claims->jti.empty() && is_revoked(claims->jti)) {
+            return HttpResponse::error(HttpStatus::UNAUTHORIZED, "Token has been revoked");
+        }
+
+        // SECURITY (F-05 audit fix): Replay protection - check if JTI already used
+        if (replay_protection_enabled_ && !claims->jti.empty()) {
+            std::lock_guard<std::mutex> lock(revocation_mutex_);
+            if (used_jtis_.find(claims->jti) != used_jtis_.end()) {
+                return HttpResponse::error(HttpStatus::UNAUTHORIZED, "Token replay detected");
+            }
+            // Prevent memory exhaustion
+            if (used_jtis_.size() < MAX_USED_JTIS) {
+                used_jtis_.insert(claims->jti);
+            }
+        }
+
         return next(req);
     };
 }
@@ -451,6 +468,46 @@ void JWTAuth::set_expiry(int seconds) {
 
 void JWTAuth::set_secret(const std::string& secret) {
     secret_ = secret;
+}
+
+// SECURITY (F-05 audit fix): Destructor to clear sensitive data
+JWTAuth::~JWTAuth() {
+    // Zero out the secret before deallocation
+    std::fill(secret_.begin(), secret_.end(), '\0');
+}
+
+// SECURITY (F-05 audit fix): Token revocation
+void JWTAuth::revoke_token(const std::string& jti) {
+    std::lock_guard<std::mutex> lock(revocation_mutex_);
+    auto now = std::chrono::system_clock::now();
+    auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+    // Keep the revocation for 2x expiry time to ensure coverage
+    revoked_tokens_[jti] = now_sec + (2 * expiry_seconds_);
+}
+
+bool JWTAuth::is_revoked(const std::string& jti) const {
+    std::lock_guard<std::mutex> lock(revocation_mutex_);
+    return revoked_tokens_.find(jti) != revoked_tokens_.end();
+}
+
+void JWTAuth::cleanup_expired_revocations() {
+    std::lock_guard<std::mutex> lock(revocation_mutex_);
+    auto now = std::chrono::system_clock::now();
+    auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+
+    // Remove expired revocations
+    for (auto it = revoked_tokens_.begin(); it != revoked_tokens_.end(); ) {
+        if (it->second < now_sec) {
+            it = revoked_tokens_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    // Clear old used JTIs (they can't be replayed after token expiry anyway)
+    used_jtis_.clear();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
