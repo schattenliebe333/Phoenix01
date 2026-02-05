@@ -45,6 +45,12 @@ namespace rael {
 namespace security {
 namespace live {
 
+// Import types from security_core namespace
+using rael::security_core::SecurityCore;
+using rael::security_core::Threat;
+using rael::security_core::ThreatType;
+using rael::security_core::threat_name;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // RST ANALYSIS ENGINE - Entropy, Coherence, Signature Detection
 // ═══════════════════════════════════════════════════════════════════════════════
