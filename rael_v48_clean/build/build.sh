@@ -153,6 +153,20 @@ if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
     echo "[build] Security Daemon compiled successfully"
 fi
 
+# RST Live Monitor (Real-Time Security with Entropy/Coherence Analysis)
+echo "[build] RST Live Monitor -> $OUT/rael_monitor"
+if [[ -f "$ROOT/src/security/rael_live_monitor.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_live_monitor.cpp" -o "$OUT/rael_monitor" -pthread
+    echo "[build] RST Live Monitor compiled successfully"
+fi
+
+# RAEL Security Dashboard (Unified GUI - All Scanners)
+echo "[build] Security Dashboard -> $OUT/rael_dashboard"
+if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_dashboard.cpp" -o "$OUT/rael_dashboard" -pthread
+    echo "[build] Security Dashboard compiled successfully"
+fi
+
 # Windows 11 EXE (Cross-Compilation)
 WIN_CXX="${WIN_CXX:-x86_64-w64-mingw32-g++}"
 if command -v "$WIN_CXX" &> /dev/null; then
@@ -173,8 +187,58 @@ if command -v "$WIN_CXX" &> /dev/null; then
             -o "$OUT/windows/rael_security.exe" -liphlpapi -lpsapi
         echo "[build] Windows Security EXE compiled successfully"
     fi
+
+    # Windows RST Live Monitor EXE
+    echo "[build] Windows Live Monitor EXE -> $OUT/windows/rael_monitor.exe"
+    if [[ -f "$ROOT/src/security/rael_live_monitor.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_live_monitor.cpp" \
+            -o "$OUT/windows/rael_monitor.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Live Monitor EXE compiled successfully"
+    fi
+
+    # Windows Security Dashboard EXE
+    echo "[build] Windows Security Dashboard EXE -> $OUT/windows/rael_dashboard.exe"
+    if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_dashboard.cpp" \
+            -o "$OUT/windows/rael_dashboard.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Security Dashboard EXE compiled successfully"
+    fi
 else
     echo "[build] mingw-w64 not found, skipping Windows build"
+fi
+
+# V56.2 Liquid-Blade WebGUI
+echo "[build] V56.2 Liquid-Blade WebGUI -> $OUT/rael_v56"
+if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" -o "$OUT/rael_v56" -pthread
+    echo "[build] V56.2 Liquid-Blade ready: http://localhost:8080"
+fi
+
+# V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Düsen)
+echo "[build] V56.3 Chronos-Gitter -> $OUT/rael_v56_chronos"
+if [[ -f "$ROOT/src/webgui/rael_v56_chronos.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_chronos.cpp" -o "$OUT/rael_v56_chronos" -pthread
+    echo "[build] V56.3 Chronos-Gitter ready: http://localhost:8080"
+fi
+
+# Legacy WebGUI
+echo "[build] WebGUI -> $OUT/rael_webgui"
+if [[ -f "$ROOT/src/webgui/rael_webgui_standalone.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_webgui_standalone.cpp" -o "$OUT/rael_webgui" -pthread
+fi
+
+# Windows V56.2 Cross-Compilation
+if command -v "$WIN_CXX" &> /dev/null; then
+    echo "[build] Windows V56.2 -> $OUT/windows/rael_v56.exe"
+    mkdir -p "$OUT/windows"
+    if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" \
+            -o "$OUT/windows/rael_v56.exe" -lws2_32
+        echo "[build] Windows V56.2 EXE compiled successfully"
+    fi
 fi
 
 echo "[build] done."

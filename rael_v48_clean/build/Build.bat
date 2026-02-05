@@ -127,4 +127,32 @@ if exist "%ROOT%\src\gui\rael_gui_win.cpp" (
   cl %CL% "%ROOT%\src\gui\rael_gui_win.cpp" /Fe:"%OUT%\rael_gui.exe" user32.lib gdi32.lib comctl32.lib
 )
 
+REM V56.2 Liquid-Blade WebGUI
+if exist "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" (
+  echo [build] V56.2 Liquid-Blade WebGUI -> %OUT%\rael_v56.exe
+  cl %CL% "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" /Fe:"%OUT%\rael_v56.exe" ws2_32.lib
+  if errorlevel 1 (
+    echo [ERROR] V56.2 build failed
+  ) else (
+    echo [build] V56.2 Liquid-Blade ready: http://localhost:8080
+  )
+)
+
+REM V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Duesen)
+if exist "%ROOT%\src\webgui\rael_v56_chronos.cpp" (
+  echo [build] V56.3 Chronos-Gitter -> %OUT%\rael_v56_chronos.exe
+  cl %CL% "%ROOT%\src\webgui\rael_v56_chronos.cpp" /Fe:"%OUT%\rael_v56_chronos.exe" ws2_32.lib
+  if errorlevel 1 (
+    echo [ERROR] V56.3 Chronos build failed
+  ) else (
+    echo [build] V56.3 Chronos-Gitter ready: http://localhost:8080
+  )
+)
+
+REM Legacy WebGUI
+if exist "%ROOT%\src\webgui\rael_webgui_standalone.cpp" (
+  echo [build] WebGUI  -> %OUT%\rael_webgui.exe
+  cl %CL% "%ROOT%\src\webgui\rael_webgui_standalone.cpp" /Fe:"%OUT%\rael_webgui.exe" ws2_32.lib
+)
+
 endlocal
