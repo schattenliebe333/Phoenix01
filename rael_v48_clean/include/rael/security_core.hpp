@@ -42,7 +42,7 @@
 #endif
 
 namespace rael {
-namespace security {
+namespace security_core {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RST KONSTANTEN FÜR SECURITY
@@ -1226,5 +1226,5 @@ public:
     }
 };
 
-} // namespace security
+} // namespace security_core
 } // namespace rael

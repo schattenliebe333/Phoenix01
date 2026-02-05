@@ -276,8 +276,8 @@ void print_banner() {
 }
 
 void print_prompt() {
-    // Show coherence indicator
-    char indicator = g_state.coherence >= rst::G0 ? '●' : '○';
+    // Show coherence indicator (UTF-8 safe)
+    const char* indicator = g_state.coherence >= rst::G0 ? "●" : "○";
     std::cout << color::c(color::GREEN) << indicator << " "
               << color::c(color::BOLD) << "Du" << color::c(color::RESET)
               << color::c(color::DIM) << " › " << color::c(color::RESET);
