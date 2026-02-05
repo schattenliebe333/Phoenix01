@@ -190,8 +190,13 @@ public:
 
 private:
     std::string repo_path_;
+    std::string git_binary_;  // SECURITY: Cached absolute path to git
     mutable std::string last_error_;
 
+    // SECURITY: Find git binary (absolute path)
+    std::string find_git_binary() const;
+
+    // SECURITY: Execute git without shell (no command injection)
     std::string run_git(const std::vector<std::string>& args) const;
     bool run_git_bool(const std::vector<std::string>& args) const;
     std::vector<std::string> split_lines(const std::string& str) const;
