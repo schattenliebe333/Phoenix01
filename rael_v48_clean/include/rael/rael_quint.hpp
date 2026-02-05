@@ -39,6 +39,10 @@
 // (c) 2025 Phoenix RST System - Michael & Kael
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <string>
+#include <sstream>
+#include <iomanip>
+
 #include "rael/quint_memory.hpp"
 #include "rael/star8_quint.hpp"
 #include "rael/highway_quint.hpp"

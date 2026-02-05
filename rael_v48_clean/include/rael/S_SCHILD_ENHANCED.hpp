@@ -25,6 +25,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <chrono>
 
 namespace rael {
 namespace schild {

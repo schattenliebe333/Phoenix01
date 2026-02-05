@@ -33,6 +33,7 @@
 #include <utility>
 #include <memory>
 #include <functional>
+#include <complex>
 
 namespace rael {
 namespace erb {

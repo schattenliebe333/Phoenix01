@@ -26,6 +26,7 @@
 #include <array>
 #include <cmath>
 #include <atomic>
+#include <vector>
 
 namespace rael {
 namespace schild {

@@ -569,10 +569,5 @@ inline RaelQuintSystemEnhanced& get_quint_system_enhanced() {
     return instance;
 }
 
-// Kompatibilitäts-Alias
-inline RaelQuintSystemEnhanced& get_quint_system() {
-    return get_quint_system_enhanced();
-}
-
 } // namespace quint
 } // namespace rael

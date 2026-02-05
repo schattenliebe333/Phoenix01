@@ -25,6 +25,9 @@
 #include <atomic>
 #include <thread>
 #include <functional>
+#include <string>
+#include <sstream>
+#include <iomanip>
 
 namespace rael {
 namespace jet {
