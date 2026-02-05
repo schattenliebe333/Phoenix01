@@ -29,7 +29,11 @@ using namespace quint;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KONSTANTEN (aus A_ANKER.hpp - gut strukturiert)
+// Guard to avoid redefinition if A_Anker.hpp was already included
 // ═══════════════════════════════════════════════════════════════════════════
+
+#ifndef RAEL_ANKER_K_DEFINED
+#define RAEL_ANKER_K_DEFINED
 
 namespace K {
     constexpr int DIM = 21;
@@ -63,6 +67,8 @@ namespace K {
     constexpr double FREQ_13   = 13.0;
     constexpr double FREQ_5    = 5.0;
 }
+
+#endif // RAEL_ANKER_K_DEFINED
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ECHTE SHA-256 HMAC (aus security.cpp - RFC 2104)

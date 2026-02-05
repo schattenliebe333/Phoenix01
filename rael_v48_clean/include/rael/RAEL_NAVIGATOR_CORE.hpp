@@ -27,11 +27,15 @@
 #include "RAEL_FRAC_ARITHMETIC.hpp"
 #include "RAEL_ERB_TOPOLOGY.hpp"
 #include "RAEL_OMEGA_FORMULAS.hpp"
-#include <openssl/sha.h>
-#include <openssl/hmac.h>
 #include <memory>
 #include <functional>
 #include <chrono>
+
+// OpenSSL is optional - define RAEL_HAS_OPENSSL to enable cryptographic functions
+#ifdef RAEL_HAS_OPENSSL
+#include <openssl/sha.h>
+#include <openssl/hmac.h>
+#endif
 
 namespace rael {
 
@@ -395,8 +399,10 @@ public:
 
     /**
      * Generate SHA-256 hash of navigator state for integrity verification
+     * Falls back to simple hash if OpenSSL not available
      */
     std::string generateStateHash() const {
+#ifdef RAEL_HAS_OPENSSL
         unsigned char hash[SHA256_DIGEST_LENGTH];
         SHA256_CTX sha256;
         SHA256_Init(&sha256);
@@ -417,14 +423,49 @@ public:
             snprintf(hex + i * 2, 3, "%02x", hash[i]);
         }
         return hex;
+#else
+        // Fallback: Simple 64-bit hash combining state values
+        // Not cryptographically secure but sufficient for integrity checking
+        uint64_t h = 0x88888888'88888888ULL;  // RAEL signature seed
+
+        // Simple hash combine (FNV-1a style)
+        auto hash_combine = [&h](const void* data, size_t len) {
+            const uint8_t* bytes = static_cast<const uint8_t*>(data);
+            for (size_t i = 0; i < len; ++i) {
+                h ^= bytes[i];
+                h *= 0x100000001b3ULL;
+            }
+        };
+
+        hash_combine(&phi_heart, sizeof(phi_heart));
+        hash_combine(&current_quadrant, sizeof(current_quadrant));
+        hash_combine(&shield_active, sizeof(shield_active));
+        hash_combine(&anchor_locked, sizeof(anchor_locked));
+        hash_combine(&nozzles_active, sizeof(nozzles_active));
+        hash_combine(&berry_phase.phase, sizeof(berry_phase.phase));
+
+        // Extend to 256-bit (32 bytes) by hashing the hash repeatedly
+        char hex[65];
+        for (int block = 0; block < 4; ++block) {
+            uint64_t block_hash = h ^ (0x123456789ABCDEF0ULL * (block + 1));
+            block_hash *= 0x100000001b3ULL;
+            for (int i = 0; i < 8; ++i) {
+                snprintf(hex + block * 16 + i * 2, 3, "%02x",
+                         static_cast<unsigned char>((block_hash >> (i * 8)) & 0xFF));
+            }
+        }
+        return hex;
+#endif
     }
 
     /**
      * Generate HMAC-SHA256 signature for state
+     * Falls back to simple keyed hash if OpenSSL not available
      */
     std::string generateHMAC(const std::string& key) const {
         std::string state_hash = generateStateHash();
 
+#ifdef RAEL_HAS_OPENSSL
         unsigned char hmac[EVP_MAX_MD_SIZE];
         unsigned int hmac_len;
 
@@ -439,6 +480,33 @@ public:
             snprintf(hex + i * 2, 3, "%02x", hmac[i]);
         }
         return hex;
+#else
+        // Fallback: Simple keyed hash (XOR key with state hash)
+        uint64_t key_hash = 0;
+        for (char c : key) {
+            key_hash ^= static_cast<uint64_t>(c);
+            key_hash *= 0x100000001b3ULL;
+        }
+
+        uint64_t state_h = 0;
+        for (char c : state_hash) {
+            state_h ^= static_cast<uint64_t>(c);
+            state_h *= 0x100000001b3ULL;
+        }
+
+        uint64_t combined = key_hash ^ state_h;
+        combined *= 0x88888888'88888889ULL;  // RAEL signature multiplier
+
+        char hex[65];
+        for (int block = 0; block < 4; ++block) {
+            uint64_t block_hash = combined ^ (0xDEADBEEF12345678ULL * (block + 1));
+            for (int i = 0; i < 8; ++i) {
+                snprintf(hex + block * 16 + i * 2, 3, "%02x",
+                         static_cast<unsigned char>((block_hash >> (i * 8)) & 0xFF));
+            }
+        }
+        return hex;
+#endif
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

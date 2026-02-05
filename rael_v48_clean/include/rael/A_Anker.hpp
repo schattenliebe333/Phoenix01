@@ -38,7 +38,11 @@ using namespace quint;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KONSTANTEN
+// Guard to avoid redefinition if A_ANKER_ENHANCED.hpp was already included
 // ═══════════════════════════════════════════════════════════════════════════
+
+#ifndef RAEL_ANKER_K_DEFINED
+#define RAEL_ANKER_K_DEFINED
 
 namespace K {
     constexpr int DIM = 21;                       // Anker-Dimension
@@ -47,20 +51,22 @@ namespace K {
     constexpr int TOTAL_NOZZLES = 61440;          // Gesamt-Düsen
     constexpr double MANIFEST_FREQ = 5.0;         // Hz (Materie-Frequenz)
     constexpr double IMPULSE_RATE = 307200.0;     // 61440 × 5 Hz
-    
+
     // Düsen-Verteilung nach Radius
     constexpr int NOZZLES_KERN = 188;             // Radius 0-3
     constexpr int NOZZLES_MITTEL = 144;           // Radius 4-7
     constexpr int NOZZLES_RAND = 112;             // Radius 8-10
-    
+
     // Radius-Grenzen
     constexpr int RADIUS_KERN = 3;
     constexpr int RADIUS_MITTEL = 7;
     constexpr int RADIUS_RAND = 10;
-    
+
     // 2× Falz Stabilisierungsfaktor
     constexpr double FALZ_FACTOR = 0.888888888888889;  // 8/9
 }
+
+#endif // RAEL_ANKER_K_DEFINED
 
 // ═══════════════════════════════════════════════════════════════════════════
 // QUADRANTEN

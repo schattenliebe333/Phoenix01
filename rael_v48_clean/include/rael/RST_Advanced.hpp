@@ -59,9 +59,10 @@ namespace K {
 // ═══════════════════════════════════════════════════════════════════════════
 // κ-FUNKTION (Basis)
 // κ(f) = 1 - f/1440
+// NOTE: kappa() is defined in rst_constants.hpp - use local K:: version here
 // ═══════════════════════════════════════════════════════════════════════════
 
-inline double kappa(double f) {
+inline double kappa_adv(double f) {
     return 1.0 - f / K::F_QUELLE;
 }
 
@@ -79,7 +80,7 @@ struct DecoherenceRate {
     }
     
     double compute(double frequency) {
-        return gamma_0 * kappa(frequency);
+        return gamma_0 * kappa_adv(frequency);
     }
     
     // Anwendung auf Zustand
@@ -507,7 +508,7 @@ public:
 // ═══════════════════════════════════════════════════════════════════════════
 
 inline double persistence_time(double frequency, double tau_0 = 1.0) {
-    double k = kappa(frequency);
+    double k = kappa_adv(frequency);
     if (k < 0.001) k = 0.001;  // Verhindere Division durch 0
     return tau_0 / k;
 }
