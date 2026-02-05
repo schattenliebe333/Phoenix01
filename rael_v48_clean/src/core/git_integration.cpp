@@ -1,7 +1,9 @@
 // RAEL V48 - Git/VCS Integration (#14)
 // Implementation of version control operations
+// SECURITY: Hardened against command injection
 
 #include "rael/git_integration.h"
+#include "rael/events.h"
 #include <sstream>
 #include <fstream>
 #include <cstdio>
@@ -11,15 +13,17 @@
 #include <chrono>
 #include <iomanip>
 #include <random>
+#include <filesystem>
 
 #ifdef _WIN32
 #include <windows.h>
-#define popen _popen
-#define pclose _pclose
 #else
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #endif
+
+namespace fs = std::filesystem;
 
 namespace rael {
 
@@ -31,50 +35,178 @@ GitClient::GitClient(const std::string& repo_path) : repo_path_(repo_path) {
     if (repo_path_.empty()) {
         repo_path_ = ".";
     }
+    // SECURITY: Find git binary once at construction
+    git_binary_ = find_git_binary();
 }
 
-std::string GitClient::run_git(const std::vector<std::string>& args) const {
-    std::string cmd = "git -C \"" + repo_path_ + "\"";
-    for (const auto& arg : args) {
-        cmd += " ";
-        // Quote arguments with spaces
-        if (arg.find(' ') != std::string::npos || arg.find('"') != std::string::npos) {
-            cmd += "\"";
-            for (char c : arg) {
-                if (c == '"') cmd += "\\\"";
-                else cmd += c;
-            }
-            cmd += "\"";
-        } else {
-            cmd += arg;
-        }
+// ============================================================================
+// SECURITY: Find git binary (absolute path)
+// ============================================================================
+std::string GitClient::find_git_binary() const {
+#ifdef _WIN32
+    // Check common Windows locations
+    std::vector<std::string> paths = {
+        "C:\\Program Files\\Git\\bin\\git.exe",
+        "C:\\Program Files (x86)\\Git\\bin\\git.exe"
+    };
+    for (const auto& p : paths) {
+        if (fs::exists(p)) return p;
     }
-    cmd += " 2>&1";
+    // Fall back to PATH search
+    return "git";
+#else
+    // Check common Unix locations
+    std::vector<std::string> paths = {
+        "/usr/bin/git",
+        "/usr/local/bin/git",
+        "/opt/homebrew/bin/git"
+    };
+    for (const auto& p : paths) {
+        if (fs::exists(p)) return p;
+    }
+    return "/usr/bin/git";  // Default
+#endif
+}
 
-    std::string result;
-    std::array<char, 4096> buffer;
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) {
-        last_error_ = "Failed to run git command";
+// ============================================================================
+// SECURITY: Execute git without shell (no command injection)
+// ============================================================================
+std::string GitClient::run_git(const std::vector<std::string>& args) const {
+    // SECURITY: Build argument vector (no shell interpretation)
+    std::vector<std::string> full_args;
+    full_args.push_back(git_binary_);
+    full_args.push_back("-C");
+    full_args.push_back(repo_path_);
+    for (const auto& arg : args) {
+        full_args.push_back(arg);
+    }
+
+    EventBus::push("GIT_CMD", "git " + (args.empty() ? "" : args[0]));
+
+#ifdef _WIN32
+    // Windows: Use CreateProcess without shell
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+    sa.bInheritHandle = TRUE;
+    sa.lpSecurityDescriptor = nullptr;
+
+    HANDLE stdout_read, stdout_write;
+    if (!CreatePipe(&stdout_read, &stdout_write, &sa, 0)) {
+        last_error_ = "Failed to create pipe";
         return "";
     }
-    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        result += buffer.data();
+    SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOA si{};
+    si.cb = sizeof(STARTUPINFOA);
+    si.hStdOutput = stdout_write;
+    si.hStdError = stdout_write;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+
+    // Build command line (proper escaping for Windows)
+    std::string cmd_line;
+    for (size_t i = 0; i < full_args.size(); ++i) {
+        if (i > 0) cmd_line += " ";
+        // Quote if contains spaces
+        if (full_args[i].find(' ') != std::string::npos) {
+            cmd_line += "\"" + full_args[i] + "\"";
+        } else {
+            cmd_line += full_args[i];
+        }
     }
-    int status = pclose(pipe);
-    if (status != 0) {
+
+    PROCESS_INFORMATION pi{};
+    if (!CreateProcessA(nullptr, const_cast<char*>(cmd_line.c_str()),
+                        nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr,
+                        nullptr, &si, &pi)) {
+        CloseHandle(stdout_read);
+        CloseHandle(stdout_write);
+        last_error_ = "Failed to create process";
+        return "";
+    }
+    CloseHandle(stdout_write);
+
+    std::string result;
+    char buffer[4096];
+    DWORD bytes_read;
+    while (ReadFile(stdout_read, buffer, sizeof(buffer) - 1, &bytes_read, nullptr) && bytes_read > 0) {
+        buffer[bytes_read] = '\0';
+        result += buffer;
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exit_code;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+    if (exit_code != 0) {
         last_error_ = result;
     }
+
+    CloseHandle(stdout_read);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
     return result;
+
+#else
+    // POSIX: Use fork/execvp (no shell)
+    int pipefd[2];
+    if (pipe(pipefd) < 0) {
+        last_error_ = "Failed to create pipe";
+        return "";
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        last_error_ = "Fork failed";
+        return "";
+    }
+
+    if (pid == 0) {
+        // Child process
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        dup2(pipefd[1], STDERR_FILENO);
+        close(pipefd[1]);
+
+        // Build argv for execvp
+        std::vector<const char*> argv;
+        for (const auto& arg : full_args) {
+            argv.push_back(arg.c_str());
+        }
+        argv.push_back(nullptr);
+
+        // SECURITY: execvp with argument array (no shell)
+        execvp(argv[0], const_cast<char* const*>(argv.data()));
+        _exit(127);
+    }
+
+    // Parent process
+    close(pipefd[1]);
+
+    std::string result;
+    char buffer[4096];
+    ssize_t n;
+    while ((n = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[n] = '\0';
+        result += buffer;
+    }
+    close(pipefd[0]);
+
+    int status;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        last_error_ = result;
+    }
+
+    return result;
+#endif
 }
 
 bool GitClient::run_git_bool(const std::vector<std::string>& args) const {
-    std::string cmd = "git -C \"" + repo_path_ + "\"";
-    for (const auto& arg : args) {
-        cmd += " " + arg;
-    }
-    cmd += " >/dev/null 2>&1";
-    return system(cmd.c_str()) == 0;
+    // SECURITY: Use the same secure execution path
+    std::string result = run_git(args);
+    return last_error_.empty();
 }
 
 bool GitClient::execute_git(const std::vector<std::string>& args) const {

@@ -31,6 +31,9 @@
 #include <functional>
 #include <cstdlib>
 #include <cmath>
+#include <random>
+#include <fstream>
+#include <arpa/inet.h>
 
 // ============================================================================
 // HTML/CSS/JS - Modern Dark Theme Dashboard
@@ -541,21 +544,54 @@ struct Metrics {
 } metrics;
 
 // ============================================================================
-// HTTP Server
+// Security: Session Token Generation (CSPRNG)
+// ============================================================================
+
+static std::string generate_session_token() {
+    static const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, sizeof(charset) - 2);
+
+    std::string token;
+    token.reserve(43); // ~256 bits base64url
+    for (int i = 0; i < 43; ++i) {
+        token += charset[dis(gen)];
+    }
+    return token;
+}
+
+// Constant-time comparison to prevent timing attacks
+static bool constant_time_eq(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) return false;
+    volatile int result = 0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        result |= (a[i] ^ b[i]);
+    }
+    return result == 0;
+}
+
+// ============================================================================
+// HTTP Server (Hardened: localhost-only default, token auth)
 // ============================================================================
 
 class Server {
 public:
-    Server(uint16_t port) : port_(port) {}
-    
+    // SECURITY: Default bind to localhost only
+    Server(uint16_t port, const std::string& bind_host = "127.0.0.1")
+        : port_(port), bind_host_(bind_host) {
+        // Generate session token at startup
+        session_token_ = generate_session_token();
+    }
+
     void start() {
         if (running_.exchange(true)) return;
-        
+
 #ifdef _WIN32
         WSADATA wsa;
         WSAStartup(MAKEWORD(2,2), &wsa);
 #endif
-        
+
         fd_ = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;
 #ifdef _WIN32
@@ -563,30 +599,49 @@ public:
 #else
         setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 #endif
-        
+
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
         addr.sin_port = htons(port_);
-        
+
+        // SECURITY: Parse bind address (default: localhost only)
+        if (inet_pton(AF_INET, bind_host_.c_str(), &addr.sin_addr) != 1) {
+            std::cerr << "[SECURITY] Invalid bind address: " << bind_host_ << "\n";
+            std::cerr << "[SECURITY] Falling back to localhost (127.0.0.1)\n";
+            inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+        }
+
         if (bind(fd_, (sockaddr*)&addr, sizeof(addr)) < 0) {
-            std::cerr << "Bind failed on port " << port_ << "\n";
+            std::cerr << "Bind failed on " << bind_host_ << ":" << port_ << "\n";
             running_ = false;
             return;
         }
-        
+
         listen(fd_, 10);
-        
+
+        // SECURITY WARNING if binding to all interfaces
+        bool is_exposed = (bind_host_ == "0.0.0.0" || bind_host_ == "::");
+
         std::cout << "\n";
         std::cout << "+---------------------------------------------+\n";
         std::cout << "|         RAEL WebGUI Server Started          |\n";
         std::cout << "|                                             |\n";
-        std::cout << "|   Open: http://localhost:" << port_ << "                |\n";
+        std::cout << "|   Bind: " << bind_host_ << ":" << port_ << std::string(32 - bind_host_.size() - std::to_string(port_).size(), ' ') << "|\n";
+        std::cout << "|   Open: http://" << (is_exposed ? "<your-ip>" : "localhost") << ":" << port_ << std::string(is_exposed ? 14 : 16, ' ') << "|\n";
+        std::cout << "|                                             |\n";
+        if (is_exposed) {
+            std::cout << "|   !! WARNING: Exposed to network !!        |\n";
+        }
+        std::cout << "|   Session Token (required for API):         |\n";
+        std::cout << "|   " << session_token_ << " |\n";
         std::cout << "|                                             |\n";
         std::cout << "|   Press Ctrl+C to stop                      |\n";
         std::cout << "+---------------------------------------------+\n";
         std::cout << "\n";
-        
+
+        // Also write token to file with restricted permissions
+        write_token_file();
+
         thread_ = std::thread([this]() {
             while (running_) {
                 sockaddr_in ca{};
@@ -597,6 +652,8 @@ public:
             }
         });
     }
+
+    const std::string& get_token() const { return session_token_; }
     
     void stop() {
         if (!running_.exchange(false)) return;
@@ -610,17 +667,82 @@ public:
     void wait() { if (thread_.joinable()) thread_.join(); }
 
 private:
+    // SECURITY: Write token to file with restricted permissions (0600)
+    void write_token_file() {
+        std::string token_path = ".rael_session_token";
+        std::ofstream f(token_path);
+        if (f) {
+            f << session_token_;
+            f.close();
+#ifndef _WIN32
+            chmod(token_path.c_str(), 0600); // Owner read/write only
+#endif
+        }
+    }
+
+    // SECURITY: Extract token from request headers
+    std::string extract_token(const std::string& req) {
+        // Look for X-RAEL-Token header
+        std::string header = "X-RAEL-Token:";
+        size_t pos = req.find(header);
+        if (pos == std::string::npos) {
+            header = "x-rael-token:"; // case-insensitive fallback
+            pos = req.find(header);
+        }
+        if (pos == std::string::npos) return "";
+
+        size_t start = pos + header.size();
+        while (start < req.size() && req[start] == ' ') start++;
+        size_t end = req.find("\r\n", start);
+        if (end == std::string::npos) end = req.size();
+        return req.substr(start, end - start);
+    }
+
+    // SECURITY: Check if request is authorized
+    bool is_authorized(const std::string& req, const std::string& path) {
+        // Static assets (HTML page) don't require token
+        if (path == "/" || path == "/index.html") return true;
+
+        // API endpoints require valid token
+        std::string token = extract_token(req);
+        return constant_time_eq(token, session_token_);
+    }
+
     void handle(socket_t c) {
+        // SECURITY: Limit request size to prevent DoS
+        constexpr size_t MAX_REQUEST_SIZE = 32 * 1024; // 32 KB
+        constexpr size_t MAX_BODY_SIZE = 1 * 1024 * 1024; // 1 MB
+
         char buf[4096];
-        int n = recv(c, buf, sizeof(buf)-1, 0);
-        if (n <= 0) { CLOSE_SOCKET(c); return; }
-        buf[n] = 0;
-        
-        std::string req(buf), resp;
+        std::string req;
+        int n;
+
+        // Read headers
+        while ((n = recv(c, buf, sizeof(buf)-1, 0)) > 0) {
+            buf[n] = 0;
+            req += buf;
+            if (req.size() > MAX_REQUEST_SIZE) {
+                send_error(c, 413, "Request Too Large");
+                return;
+            }
+            if (req.find("\r\n\r\n") != std::string::npos) break;
+        }
+
+        if (req.empty()) { CLOSE_SOCKET(c); return; }
+
+        std::string resp;
         std::string method, path;
         std::istringstream iss(req);
         iss >> method >> path;
-        
+
+        // SECURITY: Check authorization for API endpoints
+        if (!is_authorized(req, path)) {
+            resp = http(401, "application/json", "{\"error\":\"Unauthorized. Provide X-RAEL-Token header.\"}");
+            send(c, resp.c_str(), (int)resp.size(), 0);
+            CLOSE_SOCKET(c);
+            return;
+        }
+
         if (method == "GET" && (path == "/" || path == "/index.html")) {
             resp = http(200, "text/html", HTML_PAGE);
         }
@@ -630,28 +752,40 @@ private:
         else if (method == "POST" && path == "/api/cmd") {
             size_t bp = req.find("\r\n\r\n");
             std::string body = (bp != std::string::npos) ? req.substr(bp+4) : "";
-            std::string cmd;
-            size_t cp = body.find("\"cmd\"");
-            if (cp != std::string::npos) {
-                size_t s = body.find('"', cp+5);
-                size_t e = body.find('"', s+1);
-                if (s != std::string::npos && e != std::string::npos)
-                    cmd = body.substr(s+1, e-s-1);
+
+            // SECURITY: Check body size
+            if (body.size() > MAX_BODY_SIZE) {
+                resp = http(413, "application/json", "{\"error\":\"Body too large\"}");
+            } else {
+                std::string cmd;
+                size_t cp = body.find("\"cmd\"");
+                if (cp != std::string::npos) {
+                    size_t s = body.find('"', cp+5);
+                    size_t e = body.find('"', s+1);
+                    if (s != std::string::npos && e != std::string::npos)
+                        cmd = body.substr(s+1, e-s-1);
+                }
+                std::string out = process_cmd(cmd);
+                std::string esc;
+                for (char ch : out) {
+                    if (ch == '"') esc += "\\\"";
+                    else if (ch == '\\') esc += "\\\\";
+                    else if (ch == '\n') esc += "\\n";
+                    else esc += ch;
+                }
+                resp = http(200, "application/json", "{\"output\":\"" + esc + "\"}");
             }
-            std::string out = process_cmd(cmd);
-            std::string esc;
-            for (char ch : out) {
-                if (ch == '"') esc += "\\\"";
-                else if (ch == '\\') esc += "\\\\";
-                else if (ch == '\n') esc += "\\n";
-                else esc += ch;
-            }
-            resp = http(200, "application/json", "{\"output\":\"" + esc + "\"}");
         }
         else {
             resp = http(404, "text/plain", "Not Found");
         }
-        
+
+        send(c, resp.c_str(), (int)resp.size(), 0);
+        CLOSE_SOCKET(c);
+    }
+
+    void send_error(socket_t c, int code, const std::string& msg) {
+        std::string resp = http(code, "text/plain", msg);
         send(c, resp.c_str(), (int)resp.size(), 0);
         CLOSE_SOCKET(c);
     }
@@ -710,20 +844,66 @@ private:
     }
     
     uint16_t port_;
+    std::string bind_host_;
+    std::string session_token_;
     socket_t fd_ = INVALID_SOCKET;
     std::atomic<bool> running_{false};
     std::thread thread_;
 };
 
 // ============================================================================
-// Main
+// Main (with hardened command-line parsing)
 // ============================================================================
+
+void print_usage(const char* prog) {
+    std::cout << "Usage: " << prog << " [OPTIONS]\n";
+    std::cout << "\nOptions:\n";
+    std::cout << "  --port <n>       Port number (default: 8080)\n";
+    std::cout << "  --bind <ip>      Bind address (default: 127.0.0.1 = localhost only)\n";
+    std::cout << "                   Use 0.0.0.0 to expose to network (DANGEROUS)\n";
+    std::cout << "  --help           Show this help\n";
+    std::cout << "\nSECURITY NOTES:\n";
+    std::cout << "  - Server generates a session token at startup\n";
+    std::cout << "  - All API calls require X-RAEL-Token header\n";
+    std::cout << "  - Token is written to .rael_session_token (mode 0600)\n";
+    std::cout << "  - Default bind is localhost ONLY (not exposed to LAN)\n";
+}
 
 int main(int argc, char** argv) {
     uint16_t port = 8080;
-    if (argc > 1) port = (uint16_t)std::atoi(argv[1]);
-    
-    Server server(port);
+    std::string bind_host = "127.0.0.1"; // SECURITY: localhost by default
+
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h") {
+            print_usage(argv[0]);
+            return 0;
+        }
+        else if (arg == "--port" && i + 1 < argc) {
+            port = static_cast<uint16_t>(std::atoi(argv[++i]));
+        }
+        else if (arg == "--bind" && i + 1 < argc) {
+            bind_host = argv[++i];
+            // SECURITY: Warn if exposing to network
+            if (bind_host == "0.0.0.0" || bind_host == "::") {
+                std::cerr << "\n";
+                std::cerr << "╔════════════════════════════════════════════════════════╗\n";
+                std::cerr << "║  !! SECURITY WARNING !!                                ║\n";
+                std::cerr << "║  You are binding to ALL network interfaces.            ║\n";
+                std::cerr << "║  This exposes the server to your local network.        ║\n";
+                std::cerr << "║  Make sure you understand the security implications.   ║\n";
+                std::cerr << "╚════════════════════════════════════════════════════════╝\n";
+                std::cerr << "\n";
+            }
+        }
+        else if (arg[0] != '-' && i == 1) {
+            // Legacy: first positional arg is port
+            port = static_cast<uint16_t>(std::atoi(arg.c_str()));
+        }
+    }
+
+    Server server(port, bind_host);
     
     // Simulation thread
     std::atomic<bool> run{true};

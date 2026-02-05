@@ -13,6 +13,7 @@
 #include <optional>
 #include <future>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace rael {
 
@@ -181,8 +182,18 @@ public:
     }
 
     // Sandbox-Modus (nur bestimmte Programme erlaubt)
-    void set_allowed_programs(const std::vector<std::string>& programs);
+    void set_allowed_programs(const std::vector<std::string>& programs);  // DEPRECATED
     bool is_program_allowed(const std::string& program) const;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SECURITY: Hardened allowlist (absolute paths only)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Set allowed programs using ABSOLUTE paths (recommended)
+    void set_allowed_programs_secure(const std::vector<std::string>& absolute_paths);
+
+    // Optional: Enable hash pinning for additional verification
+    void set_program_hashes(const std::unordered_map<std::string, std::string>& hashes);
 
 private:
     ExecutionResult execute_internal(const std::string& command,
@@ -193,12 +204,24 @@ private:
     std::vector<CompilerDiagnostic> parse_msvc_output(const std::string& output);
     std::vector<CompilerDiagnostic> parse_clang_output(const std::string& output);
 
+    // SECURITY: Compute file hash for verification
+    std::string compute_file_hash(const std::string& path) const;
+
     ExecutionResult last_result_;
     std::chrono::milliseconds default_timeout_{60000};
     std::string default_working_dir_;
 
+    // Legacy allowlist (DEPRECATED - basename comparison is insecure)
     std::vector<std::string> allowed_programs_;
     bool sandbox_enabled_ = false;
+
+    // SECURITY: Hardened allowlist (canonical absolute paths)
+    std::unordered_set<std::string> allowed_programs_secure_;
+    bool use_secure_allowlist_ = false;
+
+    // SECURITY: Optional hash pinning
+    std::unordered_map<std::string, std::string> program_hashes_;
+    bool hash_pinning_enabled_ = false;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

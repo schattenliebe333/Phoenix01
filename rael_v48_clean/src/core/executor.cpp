@@ -1,12 +1,15 @@
 #include "rael/executor.h"
 #include "rael/filesystem.h"
 #include "rael/events.h"
+#include "rael/sha256.h"
 #include <sstream>
 #include <regex>
 #include <algorithm>
 #include <thread>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -17,6 +20,8 @@
 #include <fcntl.h>
 #include <poll.h>
 #endif
+
+namespace fs = std::filesystem;
 
 namespace rael {
 
@@ -518,12 +523,112 @@ void ProcessExecutor::set_allowed_programs(const std::vector<std::string>& progr
     sandbox_enabled_ = !programs.empty();
 }
 
+// ============================================================================
+// SECURITY: Set allowed programs with absolute paths (hardened mode)
+// ============================================================================
+void ProcessExecutor::set_allowed_programs_secure(const std::vector<std::string>& absolute_paths) {
+    allowed_programs_secure_.clear();
+    for (const auto& path : absolute_paths) {
+        try {
+            // Only accept absolute paths
+            fs::path p(path);
+            if (p.is_absolute()) {
+                std::string canonical = fs::weakly_canonical(p).string();
+                allowed_programs_secure_.insert(canonical);
+            } else {
+                EventBus::push("SECURITY_WARN", "Ignoring non-absolute path in allowlist: " + path);
+            }
+        } catch (...) {
+            EventBus::push("SECURITY_WARN", "Invalid path in allowlist: " + path);
+        }
+    }
+    sandbox_enabled_ = true;
+    use_secure_allowlist_ = true;
+    EventBus::push("SECURITY", "Executor allowlist set with " +
+                   std::to_string(allowed_programs_secure_.size()) + " programs");
+}
+
+// SECURITY: Set hash pins for programs (optional additional verification)
+void ProcessExecutor::set_program_hashes(const std::unordered_map<std::string, std::string>& hashes) {
+    program_hashes_ = hashes;
+    hash_pinning_enabled_ = !hashes.empty();
+    EventBus::push("SECURITY", "Hash pinning enabled for " +
+                   std::to_string(hashes.size()) + " programs");
+}
+
+// SECURITY: Compute SHA-256 of a file
+std::string ProcessExecutor::compute_file_hash(const std::string& path) const {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return "";
+
+    std::vector<uint8_t> data((std::istreambuf_iterator<char>(f)),
+                               std::istreambuf_iterator<char>());
+    auto hash = SHA256::digest(data);
+    return SHA256::hex(hash);
+}
+
 bool ProcessExecutor::is_program_allowed(const std::string& program) const {
     if (!sandbox_enabled_) return true;
 
+    // ========================================================================
+    // SECURITY: Use hardened mode if available
+    // ========================================================================
+    if (use_secure_allowlist_) {
+        try {
+            // Resolve the program to an absolute path
+            std::string resolved_path;
+
+            fs::path p(program);
+            if (p.is_absolute()) {
+                resolved_path = fs::weakly_canonical(p).string();
+            } else {
+                // Find in PATH
+                std::string found = find_program(program);
+                if (found.empty()) {
+                    EventBus::push("SECURITY_BLOCK", "Program not found: " + program);
+                    return false;
+                }
+                resolved_path = fs::weakly_canonical(found).string();
+            }
+
+            // Check if canonical path is in allowlist
+            if (allowed_programs_secure_.find(resolved_path) == allowed_programs_secure_.end()) {
+                EventBus::push("SECURITY_BLOCK", "Program not in secure allowlist: " + resolved_path);
+                return false;
+            }
+
+            // Optional: Verify hash
+            if (hash_pinning_enabled_) {
+                auto it = program_hashes_.find(resolved_path);
+                if (it != program_hashes_.end()) {
+                    std::string actual_hash = compute_file_hash(resolved_path);
+                    std::string expected_lower = it->second;
+                    std::string actual_lower = actual_hash;
+                    std::transform(expected_lower.begin(), expected_lower.end(),
+                                   expected_lower.begin(), ::tolower);
+                    std::transform(actual_lower.begin(), actual_lower.end(),
+                                   actual_lower.begin(), ::tolower);
+
+                    if (expected_lower != actual_lower) {
+                        EventBus::push("SECURITY_BLOCK", "Hash mismatch for: " + resolved_path);
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+
+        } catch (const std::exception& e) {
+            EventBus::push("SECURITY_BLOCK", "Path resolution failed: " + std::string(e.what()));
+            return false;
+        }
+    }
+
+    // Legacy mode (basename comparison) - DEPRECATED, use set_allowed_programs_secure()
     std::string prog_name = gFileSystem.basename(program);
     for (const auto& allowed : allowed_programs_) {
         if (prog_name == allowed || program == allowed) {
+            EventBus::push("SECURITY_WARN", "Using legacy allowlist (insecure): " + program);
             return true;
         }
     }
