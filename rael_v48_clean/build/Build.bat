@@ -7,7 +7,13 @@ set MODOUT=%OUT%\modules
 if not exist "%OUT%" mkdir "%OUT%"
 if not exist "%MODOUT%" mkdir "%MODOUT%"
 
-set CL=/EHsc /std:c++17 /O2 /I "%ROOT%\include"
+REM Security hardening flags (F-01 audit fix)
+REM /GS: Buffer security check (stack canaries)
+REM /DYNAMICBASE: ASLR support
+REM /NXCOMPAT: Data Execution Prevention
+REM /GUARD:CF: Control Flow Guard
+set SECURITY_FLAGS=/GS /DYNAMICBASE /NXCOMPAT /GUARD:CF /sdl
+set CL=/EHsc /std:c++17 /O2 /I "%ROOT%\include" %SECURITY_FLAGS%
 
 set SOURCES=^
  "%ROOT%\src\core\util.cpp" ^

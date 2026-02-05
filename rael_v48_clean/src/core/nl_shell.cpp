@@ -14,6 +14,77 @@
 namespace rael {
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  SECURITY: Shell Input Sanitization (F-02 audit fix)
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace security {
+
+// Characters that need escaping in shell commands
+static const std::string SHELL_METACHARACTERS = ";|&$`\\\"'<>(){}[]!#~*?\n\r";
+
+// Sanitize a string for safe shell usage by escaping metacharacters
+static std::string shell_escape(const std::string& input) {
+    std::string result;
+    result.reserve(input.size() * 2);
+    for (char c : input) {
+        if (SHELL_METACHARACTERS.find(c) != std::string::npos) {
+            result += '\\';
+        }
+        result += c;
+    }
+    return result;
+}
+
+// Check if a path is safe (no shell injection attempts)
+static bool is_safe_path(const std::string& path) {
+    // Block null bytes
+    if (path.find('\0') != std::string::npos) return false;
+    // Block command substitution
+    if (path.find("$(") != std::string::npos) return false;
+    if (path.find('`') != std::string::npos) return false;
+    // Block shell operators
+    if (path.find("&&") != std::string::npos) return false;
+    if (path.find("||") != std::string::npos) return false;
+    if (path.find(';') != std::string::npos) return false;
+    if (path.find('|') != std::string::npos) return false;
+    // Block newlines (command injection via newline)
+    if (path.find('\n') != std::string::npos) return false;
+    if (path.find('\r') != std::string::npos) return false;
+    return true;
+}
+
+// Check if command contains dangerous patterns
+static bool contains_dangerous_pattern(const std::string& cmd) {
+    // Dangerous command patterns (expanded list)
+    static const std::vector<std::string> dangerous = {
+        "rm -rf /", "rm -rf /*", "rm -rf .", "rm -rf ..",
+        "mkfs", "dd if=", "dd of=/dev",
+        ":(){ :|:", // fork bomb
+        "chmod -R 777 /",
+        "> /dev/sd", "> /dev/hd", "> /dev/nvme",
+        "curl | sh", "curl | bash", "wget | sh", "wget | bash",
+        "/etc/passwd", "/etc/shadow",
+        "DROP TABLE", "DROP DATABASE", "DELETE FROM",
+        "eval(", "exec(",
+    };
+
+    std::string lower = cmd;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    for (const auto& pattern : dangerous) {
+        std::string lower_pattern = pattern;
+        std::transform(lower_pattern.begin(), lower_pattern.end(),
+                       lower_pattern.begin(), ::tolower);
+        if (lower.find(lower_pattern) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace security
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  INTENT RECOGNIZER
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1403,10 +1474,28 @@ CommandResult CommandExecutor::execute(const std::string& command,
         return result;
     }
 
+    // SECURITY (F-02 audit fix): Check for dangerous patterns
+    if (security::contains_dangerous_pattern(command)) {
+        result.success = false;
+        result.error = "SECURITY: Command blocked - contains dangerous pattern";
+        result.exit_code = -1;
+        return result;
+    }
+
     // Execute command using popen
     std::string cmd = command;
+
+    // SECURITY (F-02 audit fix): Validate and escape working_directory
     if (!config.working_directory.empty()) {
-        cmd = "cd " + config.working_directory + " && " + cmd;
+        if (!security::is_safe_path(config.working_directory)) {
+            result.success = false;
+            result.error = "SECURITY: Invalid working directory - contains shell metacharacters";
+            result.exit_code = -1;
+            return result;
+        }
+        // Quote the working directory to handle spaces safely
+        std::string escaped_dir = security::shell_escape(config.working_directory);
+        cmd = "cd \"" + escaped_dir + "\" && " + cmd;
     }
     cmd += " 2>&1";
 

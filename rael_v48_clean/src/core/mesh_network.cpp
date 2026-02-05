@@ -555,6 +555,36 @@ void NATTraversal::remove_upnp_mapping(uint16_t external_port) {
 // ═══════════════════════════════════════════════════════════════════════════
 //  CRYPTO PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// SECURITY WARNINGS (F-03/F-04 audit findings):
+// ════════════════════════════════════════════════════════════════════════════
+// This implementation uses CUSTOM CRYPTOGRAPHY which is NOT RECOMMENDED for
+// production use. The following issues have been identified:
+//
+// 1. F-03: XOR Stream Cipher from SHA256 Counter Mode
+//    - This is NOT a secure authenticated encryption scheme
+//    - Missing: Nonce/IV per message (deterministic encryption)
+//    - Missing: AEAD (no ciphertext authentication)
+//    - Vulnerable to: Replay attacks, bit-flipping attacks
+//    RECOMMENDATION: Replace with libsodium's crypto_aead_xchacha20poly1305
+//
+// 2. F-04: Custom Key Derivation without Proper DH
+//    - derive_shared_secret() uses SHA256(private || peer_pub)
+//    - This is NOT a real Diffie-Hellman key exchange
+//    - No discrete log problem provides security
+//    RECOMMENDATION: Replace with libsodium's crypto_kx_* functions
+//
+// 3. Fixed Zero Salt in HKDF-like construction
+//    - Line 696: salt(32, 0) weakens key derivation
+//    - All key derivations use the same salt
+//    RECOMMENDATION: Use random salt or application-specific info
+//
+// 4. F-08: No Side-Channel Protection
+//    - SHA256 uses lookup tables vulnerable to cache-timing attacks
+//    RECOMMENDATION: Use hardware AES or constant-time implementations
+//
+// FOR PRODUCTION: Replace entire CryptoProvider with libsodium bindings
+// ════════════════════════════════════════════════════════════════════════════
 
 CryptoProvider::CryptoProvider() {
     generate_keypair();
