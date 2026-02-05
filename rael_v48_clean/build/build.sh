@@ -177,4 +177,36 @@ else
     echo "[build] mingw-w64 not found, skipping Windows build"
 fi
 
+# V56.2 Liquid-Blade WebGUI
+echo "[build] V56.2 Liquid-Blade WebGUI -> $OUT/rael_v56"
+if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" -o "$OUT/rael_v56" -pthread
+    echo "[build] V56.2 Liquid-Blade ready: http://localhost:8080"
+fi
+
+# V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Düsen)
+echo "[build] V56.3 Chronos-Gitter -> $OUT/rael_v56_chronos"
+if [[ -f "$ROOT/src/webgui/rael_v56_chronos.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_chronos.cpp" -o "$OUT/rael_v56_chronos" -pthread
+    echo "[build] V56.3 Chronos-Gitter ready: http://localhost:8080"
+fi
+
+# Legacy WebGUI
+echo "[build] WebGUI -> $OUT/rael_webgui"
+if [[ -f "$ROOT/src/webgui/rael_webgui_standalone.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_webgui_standalone.cpp" -o "$OUT/rael_webgui" -pthread
+fi
+
+# Windows V56.2 Cross-Compilation
+if command -v "$WIN_CXX" &> /dev/null; then
+    echo "[build] Windows V56.2 -> $OUT/windows/rael_v56.exe"
+    mkdir -p "$OUT/windows"
+    if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" \
+            -o "$OUT/windows/rael_v56.exe" -lws2_32
+        echo "[build] Windows V56.2 EXE compiled successfully"
+    fi
+fi
+
 echo "[build] done."

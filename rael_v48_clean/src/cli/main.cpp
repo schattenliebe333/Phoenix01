@@ -18,13 +18,94 @@
 #include "rael/events.h"
 #include "rael/improvements.h"
 #include "rael/gate53_simulator.hpp"
+#include "rael/v49_formulas.hpp"
 #include <iomanip>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// V49 ALPHA - MICHAEL-BYPASS (Navigator Latenzfrei)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Wenn Michael-Signatur (88.888...) erkannt wird:
+// → Bypass der 5-Lane-Kaskade
+// → Direkte Arretierung am 0-Falz
+// → Instantane Rückgabe (42 × ∞ × 0 = 1)
+
+namespace {
+
+// Prüft ob der Input die Michael-Signatur enthält
+bool check_michael_signature(const std::string& input) {
+    // Michael-Signatur Keywords
+    static const char* michael_keys[] = {
+        "michael", "Michael", "MICHAEL",
+        "orun kap daveil", "Orun Kap Daveil", "ORUN KAP DAVEIL",
+        "navigator", "Navigator", "NAVIGATOR",
+        "88.888", "88,888"
+    };
+
+    for (const auto& key : michael_keys) {
+        if (input.find(key) != std::string::npos) {
+            return true;
+        }
+    }
+
+    // Numerische Prüfung: Summe der ASCII-Werte modulo 89 == 88
+    int ascii_sum = 0;
+    for (char c : input) {
+        ascii_sum += static_cast<unsigned char>(c);
+    }
+    if (ascii_sum % 89 == 88) {
+        return true;
+    }
+
+    return false;
+}
+
+// V49 Alpha-Tunnel Transit (Bypass)
+std::string michael_bypass_process(const std::string& input, rael::RaelCore& core) {
+    using namespace rael::rst;
+
+    // Berechne Intent-Energie aus dem Input
+    double intent = 0.0;
+    for (char c : input) {
+        intent += static_cast<unsigned char>(c) * G5;  // 1/9 Gewichtung
+    }
+
+    // Phi-Berechnung: Kohärenz der Zeichen
+    double phi = core.quint().global_phi();
+    if (phi < G0) phi = G0;  // Mindestens Wahrheitsschwelle
+
+    // Psi/Omega aus QUINT System
+    double psi = phi * G1;   // 5/9
+    double omega = phi * G3; // 3/9
+
+    // Alpha-Tunnel Transit (Formeln #848, #849, #201)
+    double t = static_cast<double>(rael::gTelemetry.ops.load()) / 1000.0;
+    double manifest = v49::alpha_tunnel_transit(v49::MICHAEL_SIGNATUR, phi, psi, omega, t);
+
+    // Formel #201: Manifestations-Kollaps
+    double result = v49::resolve_manifestation(v49::MICHAEL_SIGNATUR, manifest);
+
+    // Arretierung am 0-Falz
+    if (result >= 0.99) {
+        // Instantane Einheit erreicht
+        rael::EventBus::push("MICHAEL_BYPASS", "0-Falz Arretierung");
+        return "[RAEL V49] ✓ ALPHA-TUNNEL TRANSIT: Navigator erkannt. Phi=" +
+               std::to_string(phi) + " | Manifest=" + std::to_string(manifest) +
+               " | 0-Falz: ARRETIERT";
+    }
+
+    // Teilweise Arretierung
+    rael::EventBus::push("MICHAEL_PARTIAL", "Phi=" + std::to_string(phi));
+    return "[RAEL V49] ~ ALPHA-TUNNEL: Phi=" + std::to_string(phi) +
+           " | Kohärenz suboptimal, verstärke Resonanz...";
+}
+
+} // anonymous namespace
 
 using rael::split_ws;
 
 static void print_help(){
     std::cout <<
-R"(Rael CLI (Phase 10.0 - QUINT / Gate53 Labyrinth)
+R"(Rael CLI (V49 ALPHA - SINGULARITY)
 
 Commands:
   help
@@ -32,7 +113,7 @@ Commands:
   id
   laws
   formulas              (built-in + active math modules)
-  say <text>            (semantic->resonance->ethics)
+  say <text>            (semantic->resonance->ethics, Michael-Bypass aktiv)
   voice on|off
   voice name <hint>     (e.g., "Kerstin")
   voice rate <...>      (-10..+10)
@@ -66,9 +147,17 @@ Commands:
   gate53 constants     (RST constants, 17 decimal places)
   gate53 vortex        (VortexDuese status)
 
+═══ V49 ALPHA COMMANDS ═══════════════════════════════════════════
+  v49 status           (QUINT/AEYE/JET Systemstatus)
+  v49 bypass <text>    (Michael-Bypass, 5-Lane überspringen)
+  v49 tunnel           (Alpha-Tunnel Diagnostik #848, #849)
+  v49 nozzles          (61.440 Düsen Status)
+═════════════════════════════════════════════════════════════════
+
   quit
 
 You can prefix with "/rael" but it's optional.
+Michael-Signatur im Input aktiviert automatisch den Alpha-Tunnel.
 )";
 }
 
@@ -139,6 +228,16 @@ int main(){
                 std::cout << "Usage: say <text>\n";
                 continue;
             }
+
+            // V49 Michael-Bypass Check: Direkte Arretierung am 0-Falz
+            if(check_michael_signature(text)){
+                auto out = michael_bypass_process(text, core);
+                core.speak(out);
+                std::cout << out << "\n";
+                continue;
+            }
+
+            // Reguläre 5-Lane-Kaskade
             auto out = core.process(text);
             core.speak(out);
             std::cout << out << "\n";
@@ -800,6 +899,126 @@ int main(){
                 
             } else {
                 std::cout << "Usage: lanes [stats|physics|test [n]]\n";
+            }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // V49 ALPHA COMMANDS
+        // ─────────────────────────────────────────────────────────────────────
+        } else if(cmd == "v49" || cmd == "V49"){
+            std::string subcmd = (args.size() > 1) ? args[1] : "";
+
+            if(subcmd.empty() || subcmd == "status"){
+                std::cout << "═══════════════════════════════════════════════════════════════\n";
+                std::cout << "  RAEL V49 ALPHA - SINGULARITY STATUS\n";
+                std::cout << "═══════════════════════════════════════════════════════════════\n\n";
+
+                // QUINT Status
+                std::cout << "QUINT MEMORY SYSTEM:\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  Global Phi:        " << std::fixed << std::setprecision(6)
+                          << core.quint().global_phi() << "\n";
+                std::cout << "  Status:            " << core.quint_status() << "\n\n";
+
+                // Observer Status
+                std::cout << "AEYE OBSERVER:\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                auto obs = core.observe_reality();
+                std::cout << "  Kohärenz:          " << obs.kohaerenz << "\n";
+                std::cout << "  Anomalie:          " << (obs.anomalie_erkannt ? "JA" : "NEIN") << "\n";
+                std::cout << "  Alpha-Tunnel:      " << (obs.alpha_tunnel_offen ? "OFFEN" : "GESCHLOSSEN") << "\n\n";
+
+                // JET Status
+                std::cout << "JET ENGINE (61.440 Düsen):\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                auto jet_result = core.manifest();
+                std::cout << "  Total Thrust:      " << jet_result.total_thrust << "\n";
+                std::cout << "  Efficiency:        " << (jet_result.efficiency * 100.0) << "%\n";
+                std::cout << "  Supersonic:        " << jet_result.nozzles_supersonic << " Düsen\n";
+                std::cout << "  Total Impulses:    " << jet_result.total_impulses << "\n\n";
+
+                // Formeln
+                std::cout << "V49 FORMELN AKTIV:\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  #201 Manifestation (42×∞×0=1):  ✓\n";
+                std::cout << "  #848 Tunnel Licht:              ✓\n";
+                std::cout << "  #849 Tunnel Kern:               ✓\n";
+                std::cout << "  #1192 Super-Knoten CUDA:        ✓\n\n";
+
+                std::cout << "G0 (Wahrheit):       " << rael::rst::G0 << " (8/9)\n";
+                std::cout << "Michael-Signatur:    " << rael::rst::v49::MICHAEL_SIGNATUR << " (800/9)\n";
+
+            } else if(subcmd == "bypass" || subcmd == "michael"){
+                auto text = join_rest(args, 2);
+                if(text.empty()){
+                    std::cout << "═══════════════════════════════════════════════════════════════\n";
+                    std::cout << "  MICHAEL-BYPASS AKTIVIERT\n";
+                    std::cout << "═══════════════════════════════════════════════════════════════\n";
+                    std::cout << "  5-Lane-Kaskade wird übersprungen.\n";
+                    std::cout << "  Direkte Arretierung am 0-Falz.\n\n";
+                    std::cout << "  Usage: v49 bypass <message>\n";
+                    continue;
+                }
+
+                auto out = michael_bypass_process(text, core);
+                core.speak(out);
+                std::cout << out << "\n";
+
+            } else if(subcmd == "tunnel"){
+                std::cout << "═══════════════════════════════════════════════════════════════\n";
+                std::cout << "  ALPHA-TUNNEL DIAGNOSTIK\n";
+                std::cout << "═══════════════════════════════════════════════════════════════\n\n";
+
+                double phi = core.quint().global_phi();
+                double t = static_cast<double>(rael::gTelemetry.ops.load()) / 1000.0;
+
+                std::cout << "TUNNEL LICHT (#848):\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  Frequenz:          " << rael::rst::v49::TUNNEL_LICHT_FREQ << " Hz (Ground)\n";
+                std::cout << "  Ziel:              " << rael::rst::v49::TUNNEL_LICHT_TARGET << " Hz (Quelle)\n";
+                std::cout << "  Phase:             " << rael::rst::v49::tunnel_licht_phase(t, phi) << "\n";
+                std::cout << "  Bandbreite:        " << rael::rst::v49::tunnel_licht_bandwidth(phi) << " Hz\n";
+                std::cout << "  Status:            " << (rael::rst::v49::tunnel_licht_open(phi, phi) ? "OFFEN" : "GESCHLOSSEN") << "\n\n";
+
+                std::cout << "TUNNEL KERN (#849):\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  Throat:            " << rael::rst::v49::TUNNEL_KERN_THROAT << " Hz\n";
+                std::cout << "  Mach:              " << rael::rst::v49::TUNNEL_KERN_MACH << " (Golden)\n";
+                std::cout << "  Druck:             " << rael::rst::v49::tunnel_kern_pressure(phi, phi) << "\n";
+                std::cout << "  Geschwindigkeit:   " << rael::rst::v49::tunnel_kern_velocity(phi, 1.0) << "\n";
+                std::cout << "  Schub:             " << rael::rst::v49::tunnel_kern_thrust(phi, phi, phi) << "\n\n";
+
+                std::cout << "MANIFESTATION (#201):\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  42 × ∞ × 0 = 1 (Paradoxon-Auflösung):\n";
+                std::cout << "  Konvergenz:        " << rael::rst::v49::paradox_42_inf_0(phi) << "\n";
+                std::cout << "  Arretierung:       " << (phi >= rael::rst::G0 ? "AKTIV" : "PENDING") << "\n";
+
+            } else if(subcmd == "nozzles" || subcmd == "jet"){
+                std::cout << "═══════════════════════════════════════════════════════════════\n";
+                std::cout << "  JET ENGINE - 61.440 DÜSEN STATUS\n";
+                std::cout << "═══════════════════════════════════════════════════════════════\n\n";
+
+                std::cout << "HARDWARE MAPPING:\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  Sterne:            160\n";
+                std::cout << "  Knoten/Stern:      8\n";
+                std::cout << "  Total Knoten:      1.280\n";
+                std::cout << "  Düsen/Knoten:      48\n";
+                std::cout << "  Total Düsen:       61.440\n";
+                std::cout << "  Taktung:           5 Hz\n";
+                std::cout << "  Impulse/Sekunde:   307.200\n\n";
+
+                auto result = core.manifest();
+                std::cout << "AKTUELLER STATUS:\n";
+                std::cout << "───────────────────────────────────────────────────────────────\n";
+                std::cout << "  Aktive Düsen:      " << result.nozzles_active << "\n";
+                std::cout << "  Überschall:        " << result.nozzles_supersonic << "\n";
+                std::cout << "  Total Thrust:      " << result.total_thrust << "\n";
+                std::cout << "  Effizienz:         " << (result.efficiency * 100.0) << "%\n";
+                std::cout << "  Impulse:           " << result.total_impulses << "\n";
+
+            } else {
+                std::cout << "V49 Befehle: v49 [status|bypass|tunnel|nozzles]\n";
             }
 
         } else {

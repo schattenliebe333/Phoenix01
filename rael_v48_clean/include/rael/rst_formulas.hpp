@@ -12,19 +12,15 @@
 #include <cmath>
 #include <cstdint>
 
+// HINWEIS: rst_constants.hpp sollte NICHT hier inkludiert werden,
+// da beide Dateien die gleichen Konstanten definieren.
+// Inkludiere immer nur EINE der beiden Dateien!
+
+#ifndef RAEL_RST_CONSTANTS_INCLUDED
+#define RAEL_RST_FORMULAS_STANDALONE
+
 namespace rael {
 namespace rst {
-
-// ═══════════════════════════════════════════════════════════════════════════
-// I. KÖRPER-KONSTANTEN (Ω) - Die Neuntel-Brüche
-// ═══════════════════════════════════════════════════════════════════════════
-
-constexpr double G0 = 0.88888888888888889;  // 8/9 - Wahrheitsfilter
-constexpr double G1 = 0.55555555555555556;  // 5/9 - Manifestation (Reflex)
-constexpr double G2 = 0.44444444444444444;  // 4/9 - Struktur (Gitter)
-constexpr double G3 = 0.33333333333333333;  // 3/9 - Emotion
-constexpr double G4 = 0.22222222222222222;  // 2/9 - Subtil (Gate 53)
-constexpr double G5 = 0.11111111111111111;  // 1/9 - Feinste (Ratio)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // II. FREQUENZ-KONSTANTEN
@@ -165,8 +161,17 @@ constexpr double TAU_RELAXATION = 0.69230769230769231;
 // Hotswap-Fenster = 1 / (F_TOR × G3)
 constexpr double T_HOTSWAP = 0.05625000000000000;
 
+} // namespace rst
+} // namespace rael
+#else
+// Wenn rst_constants.hpp bereits inkludiert wurde, nutze dessen Definitionen
+namespace rael {
+namespace rst {
+// Konstanten werden aus rst_constants.hpp genutzt
+#endif // RAEL_RST_CONSTANTS_INCLUDED
+
 // ═══════════════════════════════════════════════════════════════════════════
-// FORMELN (inline constexpr)
+// FORMELN (inline constexpr) - Diese werden IMMER definiert
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Kappa berechnen: κ(f) = 1 - f/1440
@@ -412,6 +417,170 @@ inline double vortex_boost(double f, double H, double pressure) {
     double harvest = pressure * G1;
     return sog * (1.0 + harvest);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// V49 ALPHA - NAVIGATOR FORMELN
+// Nach Michael - Orun Kap Daveil
+// ═══════════════════════════════════════════════════════════════════════════════
+
+namespace v49 {
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORMEL #201: MANIFESTATIONS-KOLLAPS AM 0-FALZ
+// Das ultimative Paradoxon: 42 × ∞ × 0 = 1
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Wenn Intent >= Michael-Signatur (800/9 = 88.888...):
+//   → Instantane Arretierung am 0-Falz
+//   → Rückgabe: 1.0 (Einheit = Wahrheit)
+//
+// Sonst: Reguläre Kaskade durch √(Intent × Potential × κ_source)
+
+constexpr double MICHAEL_SIGNATUR = 800.0 / 9.0;  // 88.888888888888889
+
+inline double resolve_manifestation(double intent, double potential) {
+    // Michael-Signatur Check (Unified 800/9)
+    if (intent >= MICHAEL_SIGNATUR) {
+        return 1.0;  // Instantane Einheit am 0-Falz
+    }
+    // Reguläre Kaskade mit Quell-Kappa
+    return std::sqrt(std::abs(intent * potential * (1.0 / F_QUELLE)));
+}
+
+// Paradoxon-Auflösung: 42 × ∞ × 0 = 1
+inline double paradox_42_inf_0(double convergence_factor) {
+    constexpr double ANSWER = 42.0;
+    // Im Grenzwert: ANSWER × (1/ε) × ε = ANSWER für ε→0
+    // Normalisiert auf [0,1] mit Konvergenz-Faktor
+    double limit = ANSWER / (1.0 + std::abs(1.0 - convergence_factor) * 1e6);
+    return std::tanh(limit);  // Sanfte Sättigung bei 1
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORMEL #848: ALPHA-TUNNEL LICHT (Einstein-Rosen Brücke)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Der Alpha-Tunnel verbindet 5 Hz (Ground) mit 1440 Hz (Quelle)
+// Licht-Komponente: Trägt Information (Navigator-Intent)
+// Aktiviert bei Phi >= G0 (8/9 = 0.888...)
+
+constexpr double TUNNEL_LICHT_FREQ = 5.0;        // Ground Frequency
+constexpr double TUNNEL_LICHT_TARGET = 1440.0;   // Source Frequency
+
+inline double tunnel_licht_phase(double t, double phi) {
+    // Phasen-Modulation: Schnelle Oszillation bei hohem Phi
+    double base_phase = t * TUNNEL_LICHT_FREQ * 2.0 * M_PI;
+    double boost = (phi >= G0) ? PHI : 1.0;  // Golden Ratio Boost bei G0
+    return std::sin(base_phase * boost);
+}
+
+inline double tunnel_licht_bandwidth(double coherence) {
+    // Bandbreite skaliert mit Kohärenz
+    // Maximal: (1440 - 5) = 1435 Hz bei perfekter Kohärenz
+    double bandwidth = (TUNNEL_LICHT_TARGET - TUNNEL_LICHT_FREQ) * coherence;
+    return bandwidth * G0;  // Moduliert mit Wahrheitsfilter
+}
+
+inline bool tunnel_licht_open(double phi, double coherence) {
+    // Tunnel öffnet wenn:
+    // 1. Phi >= G0 (Wahrheitsschwelle überschritten)
+    // 2. Kohärenz >= 0.5 (Mindest-Synchronisation)
+    return (phi >= G0) && (coherence >= 0.5);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORMEL #849: ALPHA-TUNNEL KERN (Singularitäts-Passage)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Kern-Komponente: Trägt Energie (Manifestations-Schub)
+// Der Kern ist der "Hals" der De-Laval-Düse im Frequenzraum
+// Kritischer Punkt: Schallgeschwindigkeit bei Phi = G0
+
+constexpr double TUNNEL_KERN_THROAT = 432.0;     // Throat Frequency (Herz-Chakra)
+constexpr double TUNNEL_KERN_MACH = 1.618033988749895;  // Goldener Mach
+
+inline double tunnel_kern_pressure(double psi, double omega) {
+    // Druck im Tunnel-Kern: √(Ψ × Ω)
+    // Das ist das geometrische Mittel der Ein-/Ausgangsenergie
+    return std::sqrt(std::abs(psi * omega));
+}
+
+inline double tunnel_kern_velocity(double phi, double pressure) {
+    // Geschwindigkeit im Kern:
+    // Unterschall (Phi < G0): v = sqrt(pressure) × Phi
+    // Überschall (Phi >= G0): v = sqrt(pressure) × Phi × Mach_Golden
+    double base_velocity = std::sqrt(pressure) * phi;
+    if (phi >= G0) {
+        return base_velocity * TUNNEL_KERN_MACH;  // De-Laval Expansion
+    }
+    return base_velocity;
+}
+
+inline double tunnel_kern_thrust(double phi, double psi, double omega) {
+    // Schub = Druck × Geschwindigkeit × Wirkungsgrad
+    double pressure = tunnel_kern_pressure(psi, omega);
+    double velocity = tunnel_kern_velocity(phi, pressure);
+    double eta = (phi >= G0) ? G1 : G5;  // Hoher/niedriger Wirkungsgrad
+    return pressure * velocity * eta;
+}
+
+// Vollständiger Tunnel-Durchgang (Licht + Kern kombiniert)
+inline double alpha_tunnel_transit(double intent, double phi, double psi, double omega, double t) {
+    // Phase 1: Licht-Vorbereitung
+    double licht_phase = tunnel_licht_phase(t, phi);
+
+    // Phase 2: Kern-Passage
+    double kern_thrust = tunnel_kern_thrust(phi, psi, omega);
+
+    // Phase 3: Manifestations-Kollaps (#201)
+    double manifest = resolve_manifestation(intent, kern_thrust);
+
+    // Kombiniertes Ergebnis: Licht moduliert Manifestation
+    return manifest * (1.0 + 0.1 * licht_phase);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORMEL #1192: SUPER-KNOTEN-BÜNDELUNG FÜR CUDA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+constexpr int NOZZLES_PER_NODE = 48;             // Düsen pro Knoten
+constexpr int NODES_TOTAL = 1280;                // 160 Sterne × 8
+constexpr int NOZZLES_TOTAL = NOZZLES_PER_NODE * NODES_TOTAL;  // 61.440
+constexpr double IMPULSE_RATE_HZ = 5.0;          // Ground Frequency
+constexpr double IMPULSES_PER_SECOND = NOZZLES_TOTAL * IMPULSE_RATE_HZ;  // 307.200
+
+// Knoten-Phi aus 48 Düsen-Phis
+inline double node_phi_from_nozzles(const double* nozzle_phis, int count = NOZZLES_PER_NODE) {
+    double sum = 0.0;
+    for (int i = 0; i < count; i++) {
+        sum += nozzle_phis[i];
+    }
+    return sum / count;
+}
+
+// Gesamt-Schub aus allen Düsen
+inline double total_thrust(const double* nozzle_thrusts, int count = NOZZLES_TOTAL) {
+    double sum = 0.0;
+    for (int i = 0; i < count; i++) {
+        sum += nozzle_thrusts[i];
+    }
+    return sum;
+}
+
+// Kuramoto Order Parameter (Synchronisationsgrad)
+inline double kuramoto_order_parameter(const double* phases, int count) {
+    double cos_sum = 0.0;
+    double sin_sum = 0.0;
+    for (int i = 0; i < count; i++) {
+        cos_sum += std::cos(phases[i]);
+        sin_sum += std::sin(phases[i]);
+    }
+    cos_sum /= count;
+    sin_sum /= count;
+    return std::sqrt(cos_sum * cos_sum + sin_sum * sin_sum);
+}
+
+} // namespace v49
 
 } // namespace rst
 } // namespace rael
