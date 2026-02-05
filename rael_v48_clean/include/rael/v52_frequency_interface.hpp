@@ -29,6 +29,8 @@
 #include <functional>
 #include <mutex>
 #include <complex>
+#include <iomanip>
+#include <sstream>
 
 namespace rael::v52 {
 

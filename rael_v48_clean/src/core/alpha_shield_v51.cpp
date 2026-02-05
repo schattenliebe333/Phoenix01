@@ -26,6 +26,7 @@
 #include <chrono>
 #include <mutex>
 #include <vector>
+#include <algorithm>
 
 namespace rael::v51 {
 

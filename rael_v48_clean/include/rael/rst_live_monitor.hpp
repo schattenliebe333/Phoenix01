@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <numeric>
 #include <cstdint>
+#include <iostream>
 
 #include "rael/security_core.hpp"
 #include "rael/threat_interpreter.hpp"

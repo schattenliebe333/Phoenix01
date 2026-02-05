@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <sstream>
 #include <ctime>
+#include <set>
 
 namespace rael {
 namespace anker {
