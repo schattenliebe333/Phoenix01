@@ -26,7 +26,7 @@
 
 #include "rael/security_core.hpp"
 
-using namespace rael::security;
+using namespace rael::security_core;
 
 // ANSI Colors
 #ifdef _WIN32

@@ -37,7 +37,7 @@
 #include "rael/security_core.hpp"
 #include "rael/rst_live_monitor.hpp"
 
-using namespace rael::security;
+using namespace rael::security_core;
 using namespace rael::security::live;
 
 // ANSI Colors
