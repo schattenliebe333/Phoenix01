@@ -162,7 +162,7 @@ public:
     bool program_exists(const std::string& name);
 
     // Finde Programm im PATH
-    std::string find_program(const std::string& name);
+    std::string find_program(const std::string& name) const;
 
     // Letztes Ergebnis
     const ExecutionResult& last_result() const { return last_result_; }

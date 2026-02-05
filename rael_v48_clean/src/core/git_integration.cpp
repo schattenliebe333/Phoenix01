@@ -20,6 +20,7 @@
 #else
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #endif
 
@@ -1011,8 +1012,14 @@ bool GitHooks::install_hook(HookType type, const std::string& script) {
     ofs << "#!/bin/sh\n" << script;
     ofs.close();
 
-    // Make executable
-    return system(("chmod +x \"" + path + "\"").c_str()) == 0;
+    // SECURITY: Use chmod() directly instead of system()
+#ifndef _WIN32
+    if (chmod(path.c_str(), 0755) != 0) {
+        EventBus::push("SECURITY_WARN", "Failed to chmod hook: " + path);
+        return false;
+    }
+#endif
+    return true;
 }
 
 bool GitHooks::remove_hook(HookType type) {
@@ -1036,16 +1043,64 @@ std::string GitHooks::get_hook(HookType type) const {
     return ss.str();
 }
 
+// ============================================================================
+// SECURITY: Execute hook without shell (fork/execvp)
+// ============================================================================
 bool GitHooks::run_hook(HookType type, const std::vector<std::string>& args) {
     std::string path = get_hooks_dir() + "/" + hook_type_to_name(type);
     if (!hook_exists(type)) return true;  // No hook = success
 
-    std::string cmd = "\"" + path + "\"";
+    EventBus::push("GIT_HOOK", "Running hook: " + hook_type_to_name(type));
+
+#ifdef _WIN32
+    // Windows: Use CreateProcess
+    std::string cmd_line = "\"" + path + "\"";
     for (const auto& arg : args) {
-        cmd += " \"" + arg + "\"";
+        cmd_line += " \"" + arg + "\"";
     }
 
-    return system(cmd.c_str()) == 0;
+    STARTUPINFOA si{};
+    si.cb = sizeof(STARTUPINFOA);
+    PROCESS_INFORMATION pi{};
+
+    if (!CreateProcessA(nullptr, const_cast<char*>(cmd_line.c_str()),
+                        nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) {
+        return false;
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exit_code;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return exit_code == 0;
+
+#else
+    // POSIX: Use fork/execvp (no shell)
+    pid_t pid = fork();
+    if (pid < 0) {
+        return false;
+    }
+
+    if (pid == 0) {
+        // Child process
+        std::vector<const char*> argv;
+        argv.push_back(path.c_str());
+        for (const auto& arg : args) {
+            argv.push_back(arg.c_str());
+        }
+        argv.push_back(nullptr);
+
+        // SECURITY: execvp with argument array (no shell)
+        execvp(argv[0], const_cast<char* const*>(argv.data()));
+        _exit(127);
+    }
+
+    // Parent process
+    int status;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
 }
 
 } // namespace rael

@@ -465,7 +465,7 @@ bool ProcessExecutor::program_exists(const std::string& name) {
     return !find_program(name).empty();
 }
 
-std::string ProcessExecutor::find_program(const std::string& name) {
+std::string ProcessExecutor::find_program(const std::string& name) const {
 #ifdef _WIN32
     // Check common locations
     std::vector<std::string> paths = {"", "C:\\Windows\\System32\\", "C:\\Windows\\"};

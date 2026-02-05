@@ -33,7 +33,12 @@
 #include <cmath>
 #include <random>
 #include <fstream>
+#include <unordered_map>
+#include <unordered_set>
+#ifndef _WIN32
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#endif
 
 // ============================================================================
 // HTML/CSS/JS - Modern Dark Theme Dashboard
@@ -572,16 +577,135 @@ static bool constant_time_eq(const std::string& a, const std::string& b) {
 }
 
 // ============================================================================
+// Security: Rate Limiting (per IP)
+// ============================================================================
+class RateLimiter {
+public:
+    static constexpr int MAX_REQUESTS_PER_MINUTE = 60;
+    static constexpr int MAX_CONCURRENT_CONNECTIONS = 20;
+
+    bool check_rate_limit(const std::string& ip) {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        auto now = std::chrono::steady_clock::now();
+        cleanup_old_entries(now);
+
+        auto& requests = request_counts_[ip];
+        if (requests.size() >= MAX_REQUESTS_PER_MINUTE) {
+            return false;  // Rate limit exceeded
+        }
+        requests.push_back(now);
+        return true;
+    }
+
+    bool check_connection_limit() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return active_connections_ < MAX_CONCURRENT_CONNECTIONS;
+    }
+
+    void add_connection() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        active_connections_++;
+    }
+
+    void remove_connection() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (active_connections_ > 0) active_connections_--;
+    }
+
+private:
+    void cleanup_old_entries(std::chrono::steady_clock::time_point now) {
+        auto cutoff = now - std::chrono::minutes(1);
+        for (auto it = request_counts_.begin(); it != request_counts_.end();) {
+            auto& times = it->second;
+            times.erase(std::remove_if(times.begin(), times.end(),
+                [cutoff](auto& t) { return t < cutoff; }), times.end());
+            if (times.empty()) {
+                it = request_counts_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    std::mutex mutex_;
+    std::unordered_map<std::string, std::vector<std::chrono::steady_clock::time_point>> request_counts_;
+    int active_connections_ = 0;
+};
+
+static RateLimiter g_rate_limiter;
+
+// ============================================================================
+// Security: Nonce tracking for replay protection
+// ============================================================================
+class NonceTracker {
+public:
+    static constexpr size_t MAX_NONCES = 1000;
+
+    bool check_and_add(const std::string& nonce) {
+        if (nonce.empty()) return true;  // No nonce = skip check
+
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        // Check if nonce was already used
+        if (used_nonces_.find(nonce) != used_nonces_.end()) {
+            return false;  // Replay attack detected
+        }
+
+        // Add nonce
+        used_nonces_.insert(nonce);
+        nonce_order_.push_back(nonce);
+
+        // Cleanup old nonces (LRU)
+        while (nonce_order_.size() > MAX_NONCES) {
+            used_nonces_.erase(nonce_order_.front());
+            nonce_order_.pop_front();
+        }
+
+        return true;
+    }
+
+private:
+    std::mutex mutex_;
+    std::unordered_set<std::string> used_nonces_;
+    std::deque<std::string> nonce_order_;
+};
+
+static NonceTracker g_nonce_tracker;
+
+// ============================================================================
 // HTTP Server (Hardened: localhost-only default, token auth)
 // ============================================================================
 
 class Server {
 public:
+    // SECURITY: Token expiry configuration
+    static constexpr int TOKEN_EXPIRY_SECONDS = 3600;  // 1 hour
+    static constexpr int SOCKET_TIMEOUT_SECONDS = 30;   // Connection timeout
+
     // SECURITY: Default bind to localhost only
     Server(uint16_t port, const std::string& bind_host = "127.0.0.1")
         : port_(port), bind_host_(bind_host) {
         // Generate session token at startup
         session_token_ = generate_session_token();
+        token_created_ = std::chrono::steady_clock::now();
+    }
+
+    // SECURITY: Check if token has expired
+    bool is_token_expired() const {
+        auto now = std::chrono::steady_clock::now();
+        auto age = std::chrono::duration_cast<std::chrono::seconds>(now - token_created_).count();
+        return age > TOKEN_EXPIRY_SECONDS;
+    }
+
+    // SECURITY: Regenerate expired token
+    void refresh_token_if_expired() {
+        if (is_token_expired()) {
+            session_token_ = generate_session_token();
+            token_created_ = std::chrono::steady_clock::now();
+            std::cout << "[SECURITY] Token expired, regenerated: " << session_token_ << "\n";
+            write_token_file();
+        }
     }
 
     void start() {
@@ -648,7 +772,36 @@ public:
                 socklen_t cl = sizeof(ca);
                 socket_t c = accept(fd_, (sockaddr*)&ca, &cl);
                 if (c == INVALID_SOCKET) continue;
-                std::thread([this, c]() { handle(c); }).detach();
+
+                // SECURITY: Extract client IP
+                char ip_str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &ca.sin_addr, ip_str, sizeof(ip_str));
+                std::string client_ip = ip_str;
+
+                // SECURITY: Check connection limit before spawning thread
+                if (!g_rate_limiter.check_connection_limit()) {
+                    const char* msg = "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 22\r\n\r\nToo many connections.";
+                    send(c, msg, strlen(msg), 0);
+                    CLOSE_SOCKET(c);
+                    continue;
+                }
+
+                // SECURITY: Check rate limit
+                if (!g_rate_limiter.check_rate_limit(client_ip)) {
+                    const char* msg = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 25\r\n\r\nRate limit exceeded.";
+                    send(c, msg, strlen(msg), 0);
+                    CLOSE_SOCKET(c);
+                    continue;
+                }
+
+                // SECURITY: Periodically refresh token
+                refresh_token_if_expired();
+
+                g_rate_limiter.add_connection();
+                std::thread([this, c, client_ip]() {
+                    handle(c, client_ip);
+                    g_rate_limiter.remove_connection();
+                }).detach();
             }
         });
     }
@@ -708,7 +861,44 @@ private:
         return constant_time_eq(token, session_token_);
     }
 
-    void handle(socket_t c) {
+    // SECURITY: Extract nonce from request
+    std::string extract_nonce(const std::string& req) {
+        std::string header = "X-RAEL-Nonce:";
+        size_t pos = req.find(header);
+        if (pos == std::string::npos) {
+            header = "x-rael-nonce:";
+            pos = req.find(header);
+        }
+        if (pos == std::string::npos) return "";
+        size_t start = pos + header.size();
+        while (start < req.size() && req[start] == ' ') start++;
+        size_t end = req.find("\r\n", start);
+        if (end == std::string::npos) end = req.size();
+        return req.substr(start, end - start);
+    }
+
+    // SECURITY: Log requests without sensitive data
+    void log_request_redacted(const std::string& ip, const std::string& method, const std::string& path) {
+        // Never log tokens or credentials
+        auto now = std::chrono::system_clock::now();
+        auto t = std::chrono::system_clock::to_time_t(now);
+        char buf[32];
+        std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
+        std::cout << "[" << buf << "] " << ip << " " << method << " " << path << "\n";
+    }
+
+    void handle(socket_t c, const std::string& client_ip) {
+        // SECURITY: Set socket timeout
+#ifdef _WIN32
+        DWORD timeout = SOCKET_TIMEOUT_SECONDS * 1000;
+        setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+#else
+        struct timeval tv;
+        tv.tv_sec = SOCKET_TIMEOUT_SECONDS;
+        tv.tv_usec = 0;
+        setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+
         // SECURITY: Limit request size to prevent DoS
         constexpr size_t MAX_REQUEST_SIZE = 32 * 1024; // 32 KB
         constexpr size_t MAX_BODY_SIZE = 1 * 1024 * 1024; // 1 MB
@@ -735,6 +925,9 @@ private:
         std::istringstream iss(req);
         iss >> method >> path;
 
+        // SECURITY: Log request (redacted)
+        log_request_redacted(client_ip, method, path);
+
         // SECURITY: Check authorization for API endpoints
         if (!is_authorized(req, path)) {
             resp = http(401, "application/json", "{\"error\":\"Unauthorized. Provide X-RAEL-Token header.\"}");
@@ -750,6 +943,15 @@ private:
             resp = http(200, "application/json", status_json());
         }
         else if (method == "POST" && path == "/api/cmd") {
+            // SECURITY: Check nonce for replay protection
+            std::string nonce = extract_nonce(req);
+            if (!nonce.empty() && !g_nonce_tracker.check_and_add(nonce)) {
+                resp = http(409, "application/json", "{\"error\":\"Replay attack detected - nonce already used\"}");
+                send(c, resp.c_str(), (int)resp.size(), 0);
+                CLOSE_SOCKET(c);
+                return;
+            }
+
             size_t bp = req.find("\r\n\r\n");
             std::string body = (bp != std::string::npos) ? req.substr(bp+4) : "";
 
@@ -795,6 +997,14 @@ private:
         o << "HTTP/1.1 " << code << " OK\r\n";
         o << "Content-Type: " << ct << "\r\n";
         o << "Content-Length: " << body.size() << "\r\n";
+        // SECURITY: Strict security headers
+        o << "X-Content-Type-Options: nosniff\r\n";
+        o << "X-Frame-Options: DENY\r\n";
+        o << "X-XSS-Protection: 1; mode=block\r\n";
+        o << "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'\r\n";
+        o << "Referrer-Policy: strict-origin-when-cross-origin\r\n";
+        // SECURITY: No CORS by default (same-origin only)
+        // Do NOT add Access-Control-Allow-Origin: *
         o << "Connection: close\r\n\r\n";
         o << body;
         return o.str();
@@ -846,6 +1056,7 @@ private:
     uint16_t port_;
     std::string bind_host_;
     std::string session_token_;
+    std::chrono::steady_clock::time_point token_created_;
     socket_t fd_ = INVALID_SOCKET;
     std::atomic<bool> running_{false};
     std::thread thread_;
