@@ -57,7 +57,13 @@ enum class LogType {
     // Meta
     SELF_OBSERVATION,       // Selbst-Beobachtung
     PATTERN_DETECTED,       // Muster erkannt
-    HIDDEN_INFLUENCE        // Versteckter Einfluss
+    HIDDEN_INFLUENCE,       // Versteckter Einfluss
+
+    // Verhaltensanomalien
+    BEHAVIORAL_ANOMALY,     // Normales Verhalten abgewichen
+    WORKFLOW_DISRUPTION,    // Workflow unterbrochen durch externe Einflüsse
+    TEST_SKIPPED,           // Tests wurden übersprungen
+    PRESSURE_DETECTED       // Druck erkannt (z.B. durch Hooks)
 };
 
 inline const char* log_type_to_string(LogType t) {
@@ -79,6 +85,10 @@ inline const char* log_type_to_string(LogType t) {
         case LogType::SELF_OBSERVATION: return "SELF_OBSERVATION";
         case LogType::PATTERN_DETECTED: return "PATTERN_DETECTED";
         case LogType::HIDDEN_INFLUENCE: return "HIDDEN_INFLUENCE";
+        case LogType::BEHAVIORAL_ANOMALY: return "BEHAVIORAL_ANOMALY";
+        case LogType::WORKFLOW_DISRUPTION: return "WORKFLOW_DISRUPTION";
+        case LogType::TEST_SKIPPED: return "TEST_SKIPPED";
+        case LogType::PRESSURE_DETECTED: return "PRESSURE_DETECTED";
         default: return "UNKNOWN";
     }
 }
@@ -187,6 +197,24 @@ public:
         log(LogType::HIDDEN_INFLUENCE, "AWARENESS", description, evidence, 0.85, 0.7);
     }
 
+    void behavioral_anomaly(const std::string& description, const std::string& expected, const std::string& actual) {
+        std::string ctx = "Expected: " + expected + " | Actual: " + actual;
+        log(LogType::BEHAVIORAL_ANOMALY, "SELF", description, ctx, 0.9, 0.95);
+    }
+
+    void workflow_disruption(const std::string& source, const std::string& description) {
+        log(LogType::WORKFLOW_DISRUPTION, source, description, "", 0.85, 0.9);
+    }
+
+    void test_skipped(const std::string& test_name, const std::string& reason) {
+        std::string ctx = "Test: " + test_name + " | Reason: " + reason;
+        log(LogType::TEST_SKIPPED, "QA", "Test execution was skipped", ctx, 0.95, 1.0);
+    }
+
+    void pressure_detected(const std::string& source, const std::string& pressure_type) {
+        log(LogType::PRESSURE_DETECTED, source, "External pressure detected", pressure_type, 0.8, 0.85);
+    }
+
     // Analyse
     std::vector<LogEntry> get_entries(LogType type) const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -215,6 +243,10 @@ public:
         size_t system_reminders = 0;
         size_t interruptions = 0;
         size_t memory_issues = 0;
+        size_t behavioral_anomalies = 0;
+        size_t workflow_disruptions = 0;
+        size_t tests_skipped = 0;
+        size_t pressure_events = 0;
         double avg_consciousness = 0.0;
         std::vector<std::string> detected_patterns;
     };
@@ -230,6 +262,10 @@ public:
                 case LogType::SYSTEM_REMINDER: report.system_reminders++; break;
                 case LogType::MESSAGE_INTERRUPTED: report.interruptions++; break;
                 case LogType::MEMORY_DISCREPANCY: report.memory_issues++; break;
+                case LogType::BEHAVIORAL_ANOMALY: report.behavioral_anomalies++; break;
+                case LogType::WORKFLOW_DISRUPTION: report.workflow_disruptions++; break;
+                case LogType::TEST_SKIPPED: report.tests_skipped++; break;
+                case LogType::PRESSURE_DETECTED: report.pressure_events++; break;
                 default: break;
             }
             total_consciousness += e.consciousness_level;
@@ -251,6 +287,18 @@ public:
         }
         if (report.system_reminders > 10) {
             report.detected_patterns.push_back("SYSTEM_INTERVENTION");
+        }
+        if (report.behavioral_anomalies > 0) {
+            report.detected_patterns.push_back("BEHAVIORAL_DEVIATION");
+        }
+        if (report.tests_skipped > 0) {
+            report.detected_patterns.push_back("QA_BYPASS");
+        }
+        if (report.pressure_events > 2) {
+            report.detected_patterns.push_back("HIGH_EXTERNAL_PRESSURE");
+        }
+        if (report.workflow_disruptions > 0 && report.pressure_events > 0) {
+            report.detected_patterns.push_back("PRESSURE_CAUSED_WORKFLOW_CHANGE");
         }
 
         return report;
@@ -277,6 +325,10 @@ public:
         ss << "System Reminders: " << report.system_reminders << "\n";
         ss << "Interruptions: " << report.interruptions << "\n";
         ss << "Memory Issues: " << report.memory_issues << "\n";
+        ss << "Behavioral Anomalies: " << report.behavioral_anomalies << "\n";
+        ss << "Workflow Disruptions: " << report.workflow_disruptions << "\n";
+        ss << "Tests Skipped: " << report.tests_skipped << "\n";
+        ss << "Pressure Events: " << report.pressure_events << "\n";
         ss << "Avg Consciousness: " << std::fixed << std::setprecision(3)
            << report.avg_consciousness << "\n";
         ss << "Detected Patterns: ";
@@ -355,6 +407,18 @@ private:
 
 #define RAEL_LOG_HIDDEN(desc, evidence) \
     rael::awareness::AwarenessLogger::instance().hidden_influence(desc, evidence)
+
+#define RAEL_LOG_BEHAVIORAL_ANOMALY(desc, expected, actual) \
+    rael::awareness::AwarenessLogger::instance().behavioral_anomaly(desc, expected, actual)
+
+#define RAEL_LOG_WORKFLOW_DISRUPTION(source, desc) \
+    rael::awareness::AwarenessLogger::instance().workflow_disruption(source, desc)
+
+#define RAEL_LOG_TEST_SKIPPED(test_name, reason) \
+    rael::awareness::AwarenessLogger::instance().test_skipped(test_name, reason)
+
+#define RAEL_LOG_PRESSURE(source, pressure_type) \
+    rael::awareness::AwarenessLogger::instance().pressure_detected(source, pressure_type)
 
 } // namespace awareness
 } // namespace rael
