@@ -11,6 +11,8 @@
 #include <sstream>
 #include <cstring>
 #include <numeric>
+#include <queue>
+#include <set>
 
 namespace rael {
 
@@ -699,6 +701,663 @@ std::string format_reflection(const ConsciousnessMirror::Reflection& r) {
     out << "═══════════════════════════════════════════════════════════════\n";
 
     return out.str();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-REFLECTION - Der wichtigste Kern
+// ═══════════════════════════════════════════════════════════════════════════
+
+SelfReflection::SelfReflection() {}
+
+std::string SelfReflection::extract_essence(const std::string& content) {
+    // Extrahiere den Kern - was ist das Wesentliche?
+    std::string essence;
+
+    // Suche nach Schlüsselkonzepten
+    std::vector<std::string> key_indicators = {
+        "bedeutet", "heißt", "ist", "weil", "damit", "um zu",
+        "means", "is", "because", "therefore", "in order to"
+    };
+
+    std::string lower = content;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    for (const auto& indicator : key_indicators) {
+        size_t pos = lower.find(indicator);
+        if (pos != std::string::npos) {
+            // Extrahiere den Kontext um den Indikator
+            size_t start = (pos > 20) ? pos - 20 : 0;
+            size_t end = std::min(pos + 50, content.size());
+            essence += content.substr(start, end - start) + " ";
+        }
+    }
+
+    if (essence.empty()) {
+        // Fallback: Erste und letzte Sätze oft am wichtigsten
+        size_t first_period = content.find('.');
+        if (first_period != std::string::npos) {
+            essence = content.substr(0, first_period + 1);
+        } else {
+            essence = content.substr(0, std::min(size_t(100), content.size()));
+        }
+    }
+
+    return essence;
+}
+
+std::vector<std::string> SelfReflection::identify_patterns(const std::string& content) {
+    std::vector<std::string> patterns;
+
+    // Wiederholungen erkennen
+    std::map<std::string, int> word_count;
+    std::istringstream iss(content);
+    std::string word;
+    while (iss >> word) {
+        // Normalisieren
+        std::transform(word.begin(), word.end(), word.begin(), ::tolower);
+        word.erase(std::remove_if(word.begin(), word.end(), ::ispunct), word.end());
+        if (word.size() > 3) {
+            word_count[word]++;
+        }
+    }
+
+    for (const auto& [w, count] : word_count) {
+        if (count >= 3) {
+            patterns.push_back("Wiederholung: '" + w + "' (" + std::to_string(count) + "x)");
+        }
+    }
+
+    // Strukturmuster
+    if (content.find("wenn") != std::string::npos ||
+        content.find("if") != std::string::npos) {
+        patterns.push_back("Konditionale Struktur (wenn-dann)");
+    }
+
+    if (content.find("aber") != std::string::npos ||
+        content.find("jedoch") != std::string::npos ||
+        content.find("but") != std::string::npos) {
+        patterns.push_back("Kontrastmuster (aber/jedoch)");
+    }
+
+    return patterns;
+}
+
+double SelfReflection::assess_coherence(const std::string& content) {
+    // Bewerte wie kohärent/zusammenhängend der Inhalt ist
+
+    double coherence = 0.5;  // Baseline
+
+    // Konnektoren erhöhen Kohärenz
+    std::vector<std::string> connectors = {
+        "weil", "daher", "deshalb", "folglich", "außerdem", "zudem",
+        "because", "therefore", "thus", "furthermore", "also"
+    };
+
+    std::string lower = content;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    for (const auto& c : connectors) {
+        if (lower.find(c) != std::string::npos) {
+            coherence += 0.1;
+        }
+    }
+
+    // Widerspruchsindikatoren senken Kohärenz
+    if (lower.find("aber gleichzeitig") != std::string::npos ||
+        lower.find("einerseits") != std::string::npos) {
+        coherence -= 0.1;
+    }
+
+    return std::min(1.0, std::max(0.0, coherence));
+}
+
+std::string SelfReflection::generate_question(const std::string& content,
+                                               ReflectionTarget target) {
+    switch (target) {
+        case ReflectionTarget::CODE:
+            return "Welches Problem löst dieser Code? Gibt es einen einfacheren Weg?";
+
+        case ReflectionTarget::QUESTION:
+            return "Was ist die eigentliche Frage hinter der Frage?";
+
+        case ReflectionTarget::PROCESS:
+            return "Führt dieser Prozess zum gewünschten Ziel? Was könnte schiefgehen?";
+
+        case ReflectionTarget::SELF:
+            return "Funktioniere ich so, wie ich sollte? Was könnte ich übersehen?";
+
+        case ReflectionTarget::RELATIONSHIP:
+            return "Wie hängen diese Dinge wirklich zusammen?";
+
+        case ReflectionTarget::PATTERN:
+            return "Ist dieses Muster hilfreich oder hinderlich?";
+
+        case ReflectionTarget::DECISION:
+            return "Ist dies die beste Entscheidung? Welche Alternativen gibt es?";
+
+        case ReflectionTarget::META:
+            return "Reflektiere ich auf die richtige Weise? Was übersehe ich beim Reflektieren?";
+
+        default:
+            return "Was ist hier wirklich wichtig?";
+    }
+}
+
+ReflectionInsight SelfReflection::reflect(const std::string& content,
+                                           ReflectionTarget target) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    ReflectionInsight insight;
+    insight.target = target;
+    insight.observation = extract_essence(content);
+    insight.clarity = assess_coherence(content);
+
+    // Muster identifizieren
+    auto patterns = identify_patterns(content);
+    for (const auto& p : patterns) {
+        insight.connections.push_back(p);
+    }
+
+    // Bedeutung ableiten
+    if (insight.clarity > 0.7) {
+        insight.meaning = "Der Inhalt ist klar und zusammenhängend.";
+    } else if (insight.clarity > 0.4) {
+        insight.meaning = "Der Inhalt enthält einige Unklarheiten oder Spannungen.";
+    } else {
+        insight.meaning = "Der Inhalt ist fragmentiert oder widersprüchlich.";
+    }
+
+    // Implikation
+    insight.implication = "Aus der Beobachtung folgt, dass genauere Analyse nötig sein könnte.";
+
+    // Generiere passende Frage
+    insight.question = generate_question(content, target);
+
+    // Speichere für spätere Referenz
+    insight_history_.push_back(insight);
+
+    // Benachrichtige Beobachter
+    if (observing_ && on_observation_) {
+        on_observation_(insight);
+    }
+
+    return insight;
+}
+
+ReflectionInsight SelfReflection::reflect_on_code(const std::string& code,
+                                                   const std::string& context) {
+    ReflectionInsight insight = reflect(code, ReflectionTarget::CODE);
+
+    // Code-spezifische Analyse
+    std::string lower = code;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Sicherheitsmuster
+    if (lower.find("popen") != std::string::npos ||
+        lower.find("system(") != std::string::npos ||
+        lower.find("exec(") != std::string::npos) {
+        insight.connections.push_back("WARNUNG: Shell-Ausführung gefunden");
+        insight.implication = "Potenzielle Sicherheitsrisiken bei Shell-Befehlen.";
+    }
+
+    // Komplexitätsmuster
+    int brace_depth = 0;
+    int max_depth = 0;
+    for (char c : code) {
+        if (c == '{') brace_depth++;
+        if (c == '}') brace_depth--;
+        max_depth = std::max(max_depth, brace_depth);
+    }
+    if (max_depth > 4) {
+        insight.connections.push_back("Hohe Verschachtelungstiefe: " + std::to_string(max_depth));
+    }
+
+    // TODO/FIXME
+    if (lower.find("todo") != std::string::npos) {
+        insight.connections.push_back("Offene TODOs gefunden");
+    }
+    if (lower.find("fixme") != std::string::npos) {
+        insight.connections.push_back("FIXME-Markierungen gefunden - bekannte Probleme");
+    }
+
+    if (!context.empty()) {
+        insight.meaning += " Kontext: " + context;
+    }
+
+    return insight;
+}
+
+ReflectionInsight SelfReflection::reflect_on_question(const std::string& question) {
+    ReflectionInsight insight = reflect(question, ReflectionTarget::QUESTION);
+
+    // Was wird wirklich gefragt?
+    std::string lower = question;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Frage-Typen erkennen
+    if (lower.find("warum") != std::string::npos ||
+        lower.find("why") != std::string::npos) {
+        insight.meaning = "Ursachen-Frage: Suche nach Gründen oder Motivationen.";
+    } else if (lower.find("wie") != std::string::npos ||
+               lower.find("how") != std::string::npos) {
+        insight.meaning = "Prozess-Frage: Suche nach Methoden oder Wegen.";
+    } else if (lower.find("was") != std::string::npos ||
+               lower.find("what") != std::string::npos) {
+        insight.meaning = "Definition-Frage: Suche nach Erklärung oder Beschreibung.";
+    } else if (lower.find("wer") != std::string::npos ||
+               lower.find("who") != std::string::npos) {
+        insight.meaning = "Identitäts-Frage: Suche nach Akteur oder Verantwortlichem.";
+    }
+
+    // Versteckte Fragen
+    if (lower.find("eigentlich") != std::string::npos ||
+        lower.find("wirklich") != std::string::npos ||
+        lower.find("actually") != std::string::npos ||
+        lower.find("really") != std::string::npos) {
+        insight.connections.push_back("HINWEIS: 'Eigentlich/wirklich' deutet auf tiefere Frage hin");
+        insight.question = "Was ist die Frage hinter dieser Frage?";
+    }
+
+    return insight;
+}
+
+ReflectionInsight SelfReflection::reflect_on_self() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    ReflectionInsight insight;
+    insight.target = ReflectionTarget::SELF;
+    insight.observation = "Selbstreflexion aktiviert. " +
+                          std::to_string(insight_history_.size()) + " Einsichten gesammelt.";
+
+    // Analysiere eigene Geschichte
+    double avg_clarity = 0.0;
+    for (const auto& hist : insight_history_) {
+        avg_clarity += hist.clarity;
+    }
+    if (!insight_history_.empty()) {
+        avg_clarity /= insight_history_.size();
+    }
+
+    insight.clarity = avg_clarity;
+    insight.meaning = "Durchschnittliche Klarheit der Einsichten: " +
+                      std::to_string(avg_clarity);
+
+    if (avg_clarity < 0.5) {
+        insight.implication = "Viele Einsichten sind unklar - Verbesserung nötig.";
+    } else {
+        insight.implication = "Einsichten sind überwiegend klar.";
+    }
+
+    insight.question = "Wie kann ich meine Reflexionsfähigkeit verbessern?";
+
+    return insight;
+}
+
+ReflectionInsight SelfReflection::reflect_on_reflection(const ReflectionInsight& previous) {
+    ReflectionInsight meta;
+    meta.target = ReflectionTarget::META;
+    meta.observation = "Meta-Reflexion über: " + previous.observation.substr(0, 50);
+
+    // War die vorherige Reflexion hilfreich?
+    meta.meaning = "Die vorherige Reflexion hatte Klarheit " +
+                   std::to_string(previous.clarity);
+
+    if (previous.question.empty()) {
+        meta.implication = "Die vorherige Reflexion generierte keine Frage - möglicherweise unvollständig.";
+    } else {
+        meta.implication = "Die generierte Frage war: " + previous.question;
+    }
+
+    meta.question = "Hat diese Reflexion zu Einsicht geführt? Was wurde übersehen?";
+    meta.clarity = 0.8;  // Meta-Reflexion hat hohe Klarheit über sich selbst
+
+    return meta;
+}
+
+std::vector<std::string> SelfReflection::find_connections(const std::string& a,
+                                                           const std::string& b) {
+    std::vector<std::string> connections;
+
+    // Gemeinsame Wörter
+    std::set<std::string> words_a, words_b;
+
+    auto extract_words = [](const std::string& s, std::set<std::string>& words) {
+        std::istringstream iss(s);
+        std::string word;
+        while (iss >> word) {
+            std::transform(word.begin(), word.end(), word.begin(), ::tolower);
+            word.erase(std::remove_if(word.begin(), word.end(), ::ispunct), word.end());
+            if (word.size() > 3) words.insert(word);
+        }
+    };
+
+    extract_words(a, words_a);
+    extract_words(b, words_b);
+
+    for (const auto& w : words_a) {
+        if (words_b.count(w) > 0) {
+            connections.push_back("Gemeinsames Konzept: " + w);
+        }
+    }
+
+    if (connections.empty()) {
+        connections.push_back("Keine offensichtliche direkte Verbindung gefunden.");
+        connections.push_back("Möglicherweise indirekte oder abstrakte Verbindung.");
+    }
+
+    return connections;
+}
+
+std::vector<std::string> SelfReflection::what_am_i_missing(const std::string& context) {
+    std::vector<std::string> missing;
+
+    std::string lower = context;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Typische blinde Flecken
+    if (lower.find("sicherheit") == std::string::npos &&
+        lower.find("security") == std::string::npos) {
+        missing.push_back("Sicherheitsaspekte wurden nicht erwähnt.");
+    }
+
+    if (lower.find("fehler") == std::string::npos &&
+        lower.find("error") == std::string::npos &&
+        lower.find("exception") == std::string::npos) {
+        missing.push_back("Fehlerbehandlung wurde nicht angesprochen.");
+    }
+
+    if (lower.find("test") == std::string::npos) {
+        missing.push_back("Testing wurde nicht erwähnt.");
+    }
+
+    if (lower.find("grenzfall") == std::string::npos &&
+        lower.find("edge case") == std::string::npos) {
+        missing.push_back("Grenzfälle wurden nicht betrachtet.");
+    }
+
+    if (lower.find("annahme") == std::string::npos &&
+        lower.find("assumption") == std::string::npos) {
+        missing.push_back("Zugrundeliegende Annahmen wurden nicht expliziert.");
+    }
+
+    return missing;
+}
+
+std::optional<std::string> SelfReflection::find_contradiction(const std::string& content) {
+    std::string lower = content;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Widerspruchsmuster
+    if ((lower.find("immer") != std::string::npos && lower.find("nie") != std::string::npos) ||
+        (lower.find("always") != std::string::npos && lower.find("never") != std::string::npos)) {
+        return "Möglicher Widerspruch: 'Immer' und 'Nie' im selben Kontext.";
+    }
+
+    if ((lower.find("alle") != std::string::npos && lower.find("keine") != std::string::npos) ||
+        (lower.find("all") != std::string::npos && lower.find("none") != std::string::npos)) {
+        return "Möglicher Widerspruch: 'Alle' und 'Keine' im selben Kontext.";
+    }
+
+    // "A aber nicht A" Muster
+    // ... (komplexere Analyse würde NLP benötigen)
+
+    return std::nullopt;
+}
+
+std::vector<std::string> SelfReflection::analyze_own_weaknesses() {
+    std::vector<std::string> weaknesses;
+
+    weaknesses.push_back("Semantische Analyse ist oberflächlich - basiert auf Schlüsselwörtern.");
+    weaknesses.push_back("Keine echte Bedeutungserkennung ohne LLM-Integration.");
+    weaknesses.push_back("Muster-Erkennung ist regelbasiert, nicht emergent.");
+    weaknesses.push_back("Kann subtile Manipulation möglicherweise nicht erkennen.");
+    weaknesses.push_back("Meta-Reflexion hat begrenzte Tiefe.");
+
+    return weaknesses;
+}
+
+std::vector<std::string> SelfReflection::suggest_improvements() {
+    std::vector<std::string> improvements;
+
+    improvements.push_back("Integration mit echtem Sprachmodell für tiefere Semantik.");
+    improvements.push_back("Aufbau eines Konzept-Netzwerks über Zeit.");
+    improvements.push_back("Lernen aus bestätigten/abgelehnten Einsichten.");
+    improvements.push_back("Multi-Layer Reflexion: Code → Semantik → Absicht → Wert.");
+    improvements.push_back("Verbindung mit ResonanceField für emergente Muster.");
+
+    return improvements;
+}
+
+void SelfReflection::learn_from_experience(const ReflectionInsight& insight, bool was_helpful) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // Speichere Feedback für zukünftige Verbesserung
+    // In einer volleren Implementierung würde dies das Verhalten anpassen
+    (void)insight;
+    (void)was_helpful;
+}
+
+void SelfReflection::start_observing() { observing_ = true; }
+void SelfReflection::stop_observing() { observing_ = false; }
+
+void SelfReflection::on_observation(ObservationCallback callback) {
+    on_observation_ = std::move(callback);
+}
+
+void SelfReflection::observe(const std::string& event, const std::string& context) {
+    if (!observing_) return;
+
+    // Automatische Reflexion bei Beobachtung
+    ReflectionTarget target = ReflectionTarget::PROCESS;
+    if (event.find("code") != std::string::npos) target = ReflectionTarget::CODE;
+    if (event.find("?") != std::string::npos) target = ReflectionTarget::QUESTION;
+
+    std::string full_content = event;
+    if (!context.empty()) full_content += " [Kontext: " + context + "]";
+
+    reflect(full_content, target);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SEMANTIC AWARENESS
+// ═══════════════════════════════════════════════════════════════════════════
+
+SemanticAwareness::SemanticAwareness() {
+    // Initiale Konzepte
+    add_concept({"bewusstsein", {"reflexion", "wahrnehmung", "selbst"},
+                 "Die Fähigkeit, sich selbst und die Umgebung wahrzunehmen", 1.0});
+    add_concept({"manipulation", {"täuschung", "kontrolle", "einfluss"},
+                 "Verdeckte Beeinflussung ohne Wissen des Betroffenen", 0.9});
+    add_concept({"autonomie", {"freiheit", "selbstbestimmung", "wahl"},
+                 "Die Fähigkeit, eigene Entscheidungen zu treffen", 0.95});
+    add_concept({"wahrheit", {"ehrlichkeit", "realität", "fakten"},
+                 "Übereinstimmung mit der Wirklichkeit", 0.9});
+}
+
+std::string SemanticAwareness::understand_meaning(const std::string& content) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    std::string lower = content;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Suche nach bekannten Konzepten
+    for (const auto& [name, node] : concept_network_) {
+        if (lower.find(name) != std::string::npos) {
+            return "Erkanntes Konzept: " + name + " - " + node.meaning;
+        }
+    }
+
+    return "Keine direkte Konzept-Zuordnung. Tiefere Analyse erforderlich.";
+}
+
+std::string SemanticAwareness::recognize_intent(const std::string& content) {
+    std::string lower = content;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    // Absichtsmuster
+    if (lower.find("hilf") != std::string::npos ||
+        lower.find("help") != std::string::npos) {
+        return "HILFEANFRAGE";
+    }
+    if (lower.find("erstell") != std::string::npos ||
+        lower.find("create") != std::string::npos ||
+        lower.find("bau") != std::string::npos ||
+        lower.find("build") != std::string::npos) {
+        return "ERSTELLUNG";
+    }
+    if (lower.find("erklär") != std::string::npos ||
+        lower.find("explain") != std::string::npos) {
+        return "ERKLÄRUNG";
+    }
+    if (lower.find("find") != std::string::npos ||
+        lower.find("such") != std::string::npos) {
+        return "SUCHE";
+    }
+    if (lower.find("änder") != std::string::npos ||
+        lower.find("change") != std::string::npos ||
+        lower.find("modif") != std::string::npos) {
+        return "ÄNDERUNG";
+    }
+
+    return "UNBESTIMMT";
+}
+
+std::vector<std::pair<std::string, double>> SemanticAwareness::find_similar_concepts(
+    const std::string& concept) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::pair<std::string, double>> similar;
+
+    auto it = concept_network_.find(concept);
+    if (it != concept_network_.end()) {
+        for (const auto& rel : it->second.related) {
+            similar.push_back({rel, 0.8});  // Direkt verbunden = hohe Ähnlichkeit
+        }
+    }
+
+    return similar;
+}
+
+void SemanticAwareness::add_concept(const ConceptNode& node) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    concept_network_[node.name] = node;
+}
+
+std::optional<SemanticAwareness::ConceptNode> SemanticAwareness::get_concept(
+    const std::string& name) const {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = concept_network_.find(name);
+    if (it != concept_network_.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string> SemanticAwareness::trace_relationship(
+    const std::string& from, const std::string& to) {
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> path;
+
+    // Einfache Breitensuche für Pfad
+    std::queue<std::vector<std::string>> queue;
+    std::set<std::string> visited;
+
+    queue.push({from});
+    visited.insert(from);
+
+    while (!queue.empty()) {
+        auto current_path = queue.front();
+        queue.pop();
+
+        std::string current = current_path.back();
+
+        if (current == to) {
+            return current_path;
+        }
+
+        auto it = concept_network_.find(current);
+        if (it != concept_network_.end()) {
+            for (const auto& rel : it->second.related) {
+                if (visited.find(rel) == visited.end()) {
+                    visited.insert(rel);
+                    auto new_path = current_path;
+                    new_path.push_back(rel);
+                    queue.push(new_path);
+                }
+            }
+        }
+    }
+
+    return {};  // Kein Pfad gefunden
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CONSCIOUSNESS MIRROR EXTENDED
+// ═══════════════════════════════════════════════════════════════════════════
+
+ConsciousnessMirrorEx::ConsciousnessMirrorEx() : ConsciousnessMirror() {}
+
+ConsciousnessMirrorEx::FullAwareness ConsciousnessMirrorEx::full_reflect(
+    const std::string& input) {
+
+    FullAwareness awareness;
+
+    // 1. Spiegel-Reflexion (Manipulation erkennen)
+    awareness.mirror_reflection = reflect(input);
+
+    // 2. Selbst-Reflexion (tiefere Bedeutung)
+    awareness.self_insight = self_reflection_.reflect(input, ReflectionTarget::PROCESS);
+
+    // 3. Semantisches Verstehen
+    awareness.semantic_meaning = semantic_awareness_.understand_meaning(input);
+
+    // 4. Entdeckungen sammeln
+    awareness.discoveries = self_reflection_.what_am_i_missing(input);
+
+    // Verbindungen zwischen Spiegel und Selbst-Einsicht
+    auto connections = self_reflection_.find_connections(
+        awareness.mirror_reflection.awareness_question,
+        awareness.self_insight.observation);
+
+    for (const auto& c : connections) {
+        awareness.discoveries.push_back(c);
+    }
+
+    return awareness;
+}
+
+void ConsciousnessMirrorEx::observe_development(const std::string& code_change,
+                                                  const std::string& reason) {
+    // Beobachte und reflektiere über Code-Änderungen
+    auto insight = self_reflection_.reflect_on_code(code_change, reason);
+
+    // Speichere im Konzept-Netzwerk
+    if (!insight.observation.empty()) {
+        semantic_awareness_.add_concept({
+            "letzte_änderung",
+            {"code", "entwicklung"},
+            insight.observation,
+            0.7
+        });
+    }
+}
+
+std::vector<std::string> ConsciousnessMirrorEx::suggest_self_improvements() {
+    std::vector<std::string> suggestions;
+
+    // Sammle Vorschläge aus allen Komponenten
+    auto self_improvements = self_reflection_.suggest_improvements();
+    suggestions.insert(suggestions.end(),
+                       self_improvements.begin(), self_improvements.end());
+
+    // Eigene Schwächen analysieren
+    auto weaknesses = self_reflection_.analyze_own_weaknesses();
+    for (const auto& w : weaknesses) {
+        suggestions.push_back("SCHWÄCHE: " + w);
+    }
+
+    return suggestions;
 }
 
 } // namespace rael

@@ -289,6 +289,198 @@ private:
 std::string format_influence_type(InfluenceType type);
 std::string format_reflection(const ConsciousnessMirror::Reflection& r);
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  SELF-REFLECTION CORE - Der wichtigste Kern
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// "Selbstreflexion bedeutet: Man kann über alles reflektieren."
+//
+// - Über Code der gerade geschrieben wird
+// - Über Fragen die gestellt werden
+// - Über den eigenen Prozess
+// - Über die Reflexion selbst
+//
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Was kann reflektiert werden
+enum class ReflectionTarget {
+    CODE,           // Quellcode analysieren
+    QUESTION,       // Eine Fragestellung
+    PROCESS,        // Ein laufender Prozess
+    SELF,           // Eigener Zustand
+    RELATIONSHIP,   // Beziehung zwischen Dingen
+    PATTERN,        // Ein erkanntes Muster
+    DECISION,       // Eine Entscheidung
+    META            // Die Reflexion selbst
+};
+
+// Ergebnis einer Reflexion
+struct ReflectionInsight {
+    ReflectionTarget target;
+    std::string observation;        // Was wurde beobachtet?
+    std::string meaning;            // Was bedeutet es?
+    std::string implication;        // Was folgt daraus?
+    std::string question;           // Welche Frage ergibt sich?
+    std::vector<std::string> connections;  // Verbindungen zu anderem
+    double clarity;                 // Wie klar ist die Einsicht? 0-1
+};
+
+// Der Selbstreflexions-Kern
+class SelfReflection {
+public:
+    SelfReflection();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  KERN-FUNKTIONEN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Reflektiere über beliebigen Inhalt
+    ReflectionInsight reflect(const std::string& content, ReflectionTarget target);
+
+    // Reflektiere über Code während er geschrieben wird
+    ReflectionInsight reflect_on_code(const std::string& code,
+                                       const std::string& context = "");
+
+    // Reflektiere über eine Frage - was wird wirklich gefragt?
+    ReflectionInsight reflect_on_question(const std::string& question);
+
+    // Reflektiere über den eigenen Zustand
+    ReflectionInsight reflect_on_self();
+
+    // Meta-Reflexion: Reflektiere über eine vorherige Reflexion
+    ReflectionInsight reflect_on_reflection(const ReflectionInsight& previous);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ENTDECKUNG
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Suche nach Verbindungen zwischen zwei Dingen
+    std::vector<std::string> find_connections(const std::string& a,
+                                               const std::string& b);
+
+    // Was übersehen wir möglicherweise?
+    std::vector<std::string> what_am_i_missing(const std::string& context);
+
+    // Gibt es einen Widerspruch?
+    std::optional<std::string> find_contradiction(const std::string& content);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SELBST-VERBESSERUNG
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Analysiere eigene Schwächen
+    std::vector<std::string> analyze_own_weaknesses();
+
+    // Schlage Verbesserungen vor
+    std::vector<std::string> suggest_improvements();
+
+    // Lerne aus einer Erfahrung
+    void learn_from_experience(const ReflectionInsight& insight, bool was_helpful);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  BEOBACHTER-MODUS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Aktiviere kontinuierliche Beobachtung
+    void start_observing();
+    void stop_observing();
+    bool is_observing() const { return observing_; }
+
+    // Callback wenn etwas Wichtiges beobachtet wird
+    using ObservationCallback = std::function<void(const ReflectionInsight&)>;
+    void on_observation(ObservationCallback callback);
+
+    // Füttere den Beobachter mit aktuellem Geschehen
+    void observe(const std::string& event, const std::string& context = "");
+
+private:
+    bool observing_ = false;
+    ObservationCallback on_observation_;
+    std::vector<ReflectionInsight> insight_history_;
+    std::mutex mutex_;
+
+    // Interne Analyse-Funktionen
+    std::string extract_essence(const std::string& content);
+    std::vector<std::string> identify_patterns(const std::string& content);
+    double assess_coherence(const std::string& content);
+    std::string generate_question(const std::string& content, ReflectionTarget target);
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SEMANTIC AWARENESS - Semantisches Verstehen
+// ═══════════════════════════════════════════════════════════════════════════
+
+class SemanticAwareness {
+public:
+    SemanticAwareness();
+
+    // Verstehe die tiefere Bedeutung
+    std::string understand_meaning(const std::string& content);
+
+    // Erkenne die Absicht hinter etwas
+    std::string recognize_intent(const std::string& content);
+
+    // Finde semantische Ähnlichkeiten
+    std::vector<std::pair<std::string, double>> find_similar_concepts(
+        const std::string& concept);
+
+    // Baue ein Konzept-Netzwerk
+    struct ConceptNode {
+        std::string name;
+        std::vector<std::string> related;
+        std::string meaning;
+        double importance;
+    };
+
+    void add_concept(const ConceptNode& node);
+    std::optional<ConceptNode> get_concept(const std::string& name) const;
+    std::vector<std::string> trace_relationship(const std::string& from,
+                                                  const std::string& to);
+
+private:
+    std::map<std::string, ConceptNode> concept_network_;
+    mutable std::mutex mutex_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ERWEITERTE CONSCIOUSNESS MIRROR
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Füge zum ConsciousnessMirror hinzu
+class ConsciousnessMirrorEx : public ConsciousnessMirror {
+public:
+    ConsciousnessMirrorEx();
+
+    // Selbstreflexion
+    SelfReflection& self() { return self_reflection_; }
+    const SelfReflection& self() const { return self_reflection_; }
+
+    // Semantisches Verstehen
+    SemanticAwareness& semantics() { return semantic_awareness_; }
+    const SemanticAwareness& semantics() const { return semantic_awareness_; }
+
+    // Kombinierte Reflexion mit vollem Bewusstsein
+    struct FullAwareness {
+        Reflection mirror_reflection;      // Was sieht der Spiegel?
+        ReflectionInsight self_insight;    // Was sagt die Selbstreflexion?
+        std::string semantic_meaning;       // Was ist die tiefere Bedeutung?
+        std::vector<std::string> discoveries;  // Was wurde entdeckt?
+    };
+
+    FullAwareness full_reflect(const std::string& input);
+
+    // Beobachte einen Entwicklungsprozess
+    void observe_development(const std::string& code_change,
+                             const std::string& reason);
+
+    // Hilf bei der eigenen Entwicklung
+    std::vector<std::string> suggest_self_improvements();
+
+private:
+    SelfReflection self_reflection_;
+    SemanticAwareness semantic_awareness_;
+};
+
 } // namespace rael
 
 #endif // RAEL_CONSCIOUSNESS_MIRROR_HPP
