@@ -279,22 +279,57 @@ public:
     }
 
     std::array<uint8_t, DIGEST_SIZE> finalize() {
-        // Padding: 1-bit, dann 0s, dann Länge
-        uint8_t pad[BLOCK_SIZE * 2];
-        size_t pad_len = BLOCK_SIZE - ((total_len_ + 9) % BLOCK_SIZE);
-        if (pad_len == 0) pad_len = BLOCK_SIZE;
+        // Speichere Original-Länge BEVOR Padding
+        uint64_t original_len = total_len_;
 
+        // Padding: 1-bit, dann 0s, dann Länge (64-bit)
+        // Padding muss so sein, dass Gesamtlänge ≡ 56 (mod 64)
+        size_t current_pos = buffer_len_;
+        size_t pad_len = (current_pos < 56) ? (56 - current_pos) : (120 - current_pos);
+
+        uint8_t pad[128];
         pad[0] = 0x80;
         std::memset(pad + 1, 0, pad_len - 1);
 
-        // Länge in bits (big-endian)
-        uint64_t bit_len = total_len_ * 8;
+        // Länge in bits (big-endian) am Ende
+        uint64_t bit_len = original_len * 8;
         for (int i = 7; i >= 0; --i) {
             pad[pad_len + i] = static_cast<uint8_t>(bit_len);
             bit_len >>= 8;
         }
 
-        update(pad, pad_len + 8);
+        // Verarbeite Padding direkt (nicht über update, um total_len_ nicht zu ändern)
+        size_t total_pad = pad_len + 8;
+        size_t offset = 0;
+
+        // Fülle Buffer und verarbeite
+        if (buffer_len_ > 0) {
+            size_t fill = BLOCK_SIZE - buffer_len_;
+            if (fill > total_pad) fill = total_pad;
+            std::memcpy(buffer_ + buffer_len_, pad, fill);
+            buffer_len_ += fill;
+            offset += fill;
+
+            if (buffer_len_ == BLOCK_SIZE) {
+                process_block(buffer_);
+                buffer_len_ = 0;
+            }
+        }
+
+        // Verarbeite restliches Padding
+        while (offset + BLOCK_SIZE <= total_pad) {
+            process_block(pad + offset);
+            offset += BLOCK_SIZE;
+        }
+
+        if (offset < total_pad) {
+            std::memcpy(buffer_, pad + offset, total_pad - offset);
+            buffer_len_ = total_pad - offset;
+            if (buffer_len_ == BLOCK_SIZE) {
+                process_block(buffer_);
+                buffer_len_ = 0;
+            }
+        }
 
         // Finale Transformationen
         aikido_finalize(state_);
@@ -356,28 +391,38 @@ private:
             constants::F_BASE13, constants::F_GROUND
         };
 
-        // 7 Runden (eine pro Frequenz)
-        for (size_t round = 0; round < 7; ++round) {
-            // Mische Words mit State
-            for (size_t i = 0; i < 4; ++i) {
-                state_[i] = phi_mix(state_[i], words[i]);
-                state_[i] = phi_mix(state_[i], words[i + 4]);
-            }
+        // 7 Runden (eine pro Frequenz) × 2 Durchläufe = 14 Runden total
+        for (int pass = 0; pass < 2; ++pass) {
+            for (size_t round = 0; round < 7; ++round) {
+                // Mische Words mit State (mit Round-abhängiger Rotation)
+                for (size_t i = 0; i < 4; ++i) {
+                    size_t w1 = (i + round) % 8;
+                    size_t w2 = (i + round + 4) % 8;
+                    state_[i] = phi_mix(state_[i], words[w1]);
+                    state_[i] = phi_mix(state_[i], words[w2]);
+                }
 
-            // Kappa-Transformation mit aktueller Frequenz
-            for (size_t i = 0; i < 4; ++i) {
-                state_[i] = kappa_transform(state_[i], freqs[round]);
-            }
+                // Kappa-Transformation mit aktueller Frequenz
+                for (size_t i = 0; i < 4; ++i) {
+                    state_[i] = kappa_transform(state_[i], freqs[round]);
+                }
 
-            // Resonanz-Diffusion durch 13×13 Grid
-            resonance_diffuse(state_);
+                // Resonanz-Diffusion durch 13×13 Grid
+                resonance_diffuse(state_);
 
-            // Tunnel-Transformation (verbindet Frequenzebenen)
-            uint64_t tunnel = tunnel_transform(state_[0] ^ state_[2],
-                                                state_[1] ^ state_[3]);
-            for (size_t i = 0; i < 4; ++i) {
-                state_[i] ^= tunnel;
-                tunnel = phi_mix(tunnel, state_[i]);
+                // Tunnel-Transformation (verbindet Frequenzebenen)
+                uint64_t tunnel = tunnel_transform(state_[0] ^ state_[2],
+                                                    state_[1] ^ state_[3]);
+                for (size_t i = 0; i < 4; ++i) {
+                    state_[i] ^= tunnel;
+                    tunnel = phi_mix(tunnel, state_[i]);
+                }
+
+                // Word-Schedule: Transformiere Words für nächste Runde
+                for (size_t i = 0; i < 8; ++i) {
+                    words[i] = phi_mix(words[i], words[(i + 1) % 8]);
+                    words[i] ^= state_[i % 4];
+                }
             }
         }
     }
