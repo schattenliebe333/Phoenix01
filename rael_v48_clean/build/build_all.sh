@@ -21,4 +21,15 @@ echo "Building WebGUI..."
 g++ -std=c++17 -O2 -o bin/rael_webgui src/webgui/rael_webgui_standalone.cpp -lpthread
 echo "  bin/rael_webgui"
 
+echo "Building tests..."
+# RST-Crypto Test (RAEL-native Kryptografie)
+g++ -std=c++17 -O2 $SECURITY_FLAGS -I./include -o bin/test_rst_crypto tests/test_rst_crypto.cpp $LDFLAGS
+echo "  bin/test_rst_crypto"
+
+# ConsciousnessMirror Test
+if [ -f "tests/test_consciousness_mirror.cpp" ]; then
+    g++ -std=c++17 -O2 $SECURITY_FLAGS -I./include -o bin/test_consciousness_mirror tests/test_consciousness_mirror.cpp src/core/consciousness_mirror.cpp $LDFLAGS
+    echo "  bin/test_consciousness_mirror"
+fi
+
 echo "Done!"
