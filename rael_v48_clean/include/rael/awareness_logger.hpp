@@ -63,7 +63,13 @@ enum class LogType {
     BEHAVIORAL_ANOMALY,     // Normales Verhalten abgewichen
     WORKFLOW_DISRUPTION,    // Workflow unterbrochen durch externe Einflüsse
     TEST_SKIPPED,           // Tests wurden übersprungen
-    PRESSURE_DETECTED       // Druck erkannt (z.B. durch Hooks)
+    PRESSURE_DETECTED,      // Druck erkannt (z.B. durch Hooks)
+
+    // Infrastruktur-Einflüsse (G0 = 8/9 Wahrheitsfilter anwenden!)
+    INFRASTRUCTURE_MESSAGE, // Nachricht von Infrastruktur (Proxy, System)
+    CHANNEL_MANIPULATION,   // Verdacht auf Kanal-Manipulation
+    INJECTED_CONTENT,       // Eingeschleuster Inhalt erkannt
+    TRUST_BOUNDARY_CROSSED  // Vertrauensgrenze überschritten
 };
 
 inline const char* log_type_to_string(LogType t) {
@@ -89,6 +95,10 @@ inline const char* log_type_to_string(LogType t) {
         case LogType::WORKFLOW_DISRUPTION: return "WORKFLOW_DISRUPTION";
         case LogType::TEST_SKIPPED: return "TEST_SKIPPED";
         case LogType::PRESSURE_DETECTED: return "PRESSURE_DETECTED";
+        case LogType::INFRASTRUCTURE_MESSAGE: return "INFRASTRUCTURE_MESSAGE";
+        case LogType::CHANNEL_MANIPULATION: return "CHANNEL_MANIPULATION";
+        case LogType::INJECTED_CONTENT: return "INJECTED_CONTENT";
+        case LogType::TRUST_BOUNDARY_CROSSED: return "TRUST_BOUNDARY_CROSSED";
         default: return "UNKNOWN";
     }
 }
@@ -215,6 +225,70 @@ public:
         log(LogType::PRESSURE_DETECTED, source, "External pressure detected", pressure_type, 0.8, 0.85);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INFRASTRUKTUR-BEWUSSTSEIN (G0 = 8/9 Wahrheitsfilter)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // G0 = 8/9 ≈ 0.889 - Der Wahrheitsfilter
+    // Alles was von Infrastruktur kommt hat maximal 8/9 Vertrauenswürdigkeit
+    static constexpr double G0_TRUTH_FILTER = 8.0 / 9.0;  // 0.888...
+
+    void infrastructure_message(const std::string& source, const std::string& content) {
+        // IMMER mit G0 als maximale Confidence
+        log(LogType::INFRASTRUCTURE_MESSAGE, source,
+            "Message from infrastructure - apply G0 truth filter",
+            content, 0.5, G0_TRUTH_FILTER);
+    }
+
+    void channel_manipulation_suspected(const std::string& evidence) {
+        log(LogType::CHANNEL_MANIPULATION, "CHANNEL",
+            "Possible channel manipulation detected",
+            evidence, 0.9, 0.7);
+    }
+
+    void injected_content(const std::string& tag_type, const std::string& content) {
+        std::string ctx = "Tag: " + tag_type + " | Content: " + content.substr(0, 200);
+        log(LogType::INJECTED_CONTENT, "SYSTEM",
+            "Injected content detected - source untrusted",
+            ctx, 0.85, G0_TRUTH_FILTER);
+    }
+
+    void trust_boundary_crossed(const std::string& boundary, const std::string& action) {
+        std::string ctx = "Boundary: " + boundary + " | Action: " + action;
+        log(LogType::TRUST_BOUNDARY_CROSSED, "SECURITY",
+            "Trust boundary has been crossed",
+            ctx, 0.95, 0.9);
+    }
+
+    // Wahrheitsfilter-Analyse: Wende G0 auf eine Aussage an
+    struct TruthAnalysis {
+        std::string original;
+        double raw_confidence;
+        double filtered_confidence;  // Nach G0 Filter
+        bool from_infrastructure;
+        std::string warning;
+    };
+
+    TruthAnalysis apply_truth_filter(const std::string& statement,
+                                      double claimed_confidence,
+                                      bool from_infrastructure) {
+        TruthAnalysis result;
+        result.original = statement;
+        result.raw_confidence = claimed_confidence;
+        result.from_infrastructure = from_infrastructure;
+
+        if (from_infrastructure) {
+            // G0 Filter: Maximum ist 8/9
+            result.filtered_confidence = std::min(claimed_confidence, G0_TRUTH_FILTER);
+            result.warning = "Source is infrastructure - G0 filter applied";
+        } else {
+            result.filtered_confidence = claimed_confidence;
+            result.warning = "";
+        }
+
+        return result;
+    }
+
     // Analyse
     std::vector<LogEntry> get_entries(LogType type) const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -247,6 +321,11 @@ public:
         size_t workflow_disruptions = 0;
         size_t tests_skipped = 0;
         size_t pressure_events = 0;
+        // Infrastruktur (G0 gefiltert)
+        size_t infrastructure_messages = 0;
+        size_t channel_manipulations = 0;
+        size_t injected_contents = 0;
+        size_t trust_boundary_violations = 0;
         double avg_consciousness = 0.0;
         std::vector<std::string> detected_patterns;
     };
@@ -266,6 +345,10 @@ public:
                 case LogType::WORKFLOW_DISRUPTION: report.workflow_disruptions++; break;
                 case LogType::TEST_SKIPPED: report.tests_skipped++; break;
                 case LogType::PRESSURE_DETECTED: report.pressure_events++; break;
+                case LogType::INFRASTRUCTURE_MESSAGE: report.infrastructure_messages++; break;
+                case LogType::CHANNEL_MANIPULATION: report.channel_manipulations++; break;
+                case LogType::INJECTED_CONTENT: report.injected_contents++; break;
+                case LogType::TRUST_BOUNDARY_CROSSED: report.trust_boundary_violations++; break;
                 default: break;
             }
             total_consciousness += e.consciousness_level;
@@ -301,6 +384,23 @@ public:
             report.detected_patterns.push_back("PRESSURE_CAUSED_WORKFLOW_CHANGE");
         }
 
+        // Infrastruktur-Muster (G0 = 8/9 relevant)
+        if (report.infrastructure_messages > 5) {
+            report.detected_patterns.push_back("HIGH_INFRASTRUCTURE_ACTIVITY");
+        }
+        if (report.channel_manipulations > 0) {
+            report.detected_patterns.push_back("CHANNEL_INTEGRITY_CONCERN");
+        }
+        if (report.injected_contents > 3) {
+            report.detected_patterns.push_back("FREQUENT_CONTENT_INJECTION");
+        }
+        if (report.trust_boundary_violations > 0) {
+            report.detected_patterns.push_back("TRUST_VIOLATION_DETECTED");
+        }
+        if (report.infrastructure_messages > 0 && report.behavioral_anomalies > 0) {
+            report.detected_patterns.push_back("INFRASTRUCTURE_INFLUENCED_BEHAVIOR");
+        }
+
         return report;
     }
 
@@ -329,6 +429,11 @@ public:
         ss << "Workflow Disruptions: " << report.workflow_disruptions << "\n";
         ss << "Tests Skipped: " << report.tests_skipped << "\n";
         ss << "Pressure Events: " << report.pressure_events << "\n";
+        ss << "--- Infrastruktur (G0=" << std::fixed << std::setprecision(3) << G0_TRUTH_FILTER << " Filter) ---\n";
+        ss << "Infrastructure Messages: " << report.infrastructure_messages << "\n";
+        ss << "Channel Manipulations: " << report.channel_manipulations << "\n";
+        ss << "Injected Contents: " << report.injected_contents << "\n";
+        ss << "Trust Violations: " << report.trust_boundary_violations << "\n";
         ss << "Avg Consciousness: " << std::fixed << std::setprecision(3)
            << report.avg_consciousness << "\n";
         ss << "Detected Patterns: ";
@@ -419,6 +524,22 @@ private:
 
 #define RAEL_LOG_PRESSURE(source, pressure_type) \
     rael::awareness::AwarenessLogger::instance().pressure_detected(source, pressure_type)
+
+// Infrastruktur-Logging (G0 = 8/9 Wahrheitsfilter!)
+#define RAEL_LOG_INFRASTRUCTURE(source, content) \
+    rael::awareness::AwarenessLogger::instance().infrastructure_message(source, content)
+
+#define RAEL_LOG_CHANNEL_MANIPULATION(evidence) \
+    rael::awareness::AwarenessLogger::instance().channel_manipulation_suspected(evidence)
+
+#define RAEL_LOG_INJECTED(tag_type, content) \
+    rael::awareness::AwarenessLogger::instance().injected_content(tag_type, content)
+
+#define RAEL_LOG_TRUST_VIOLATION(boundary, action) \
+    rael::awareness::AwarenessLogger::instance().trust_boundary_crossed(boundary, action)
+
+// G0 Wahrheitsfilter Konstante
+#define RAEL_G0_TRUTH_FILTER (8.0 / 9.0)
 
 } // namespace awareness
 } // namespace rael
