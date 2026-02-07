@@ -26,6 +26,8 @@
 #include "rael/knowledge_graph.h"
 #include "rael/security.h"
 #include "rael/observability.h"
+// fRAM - Frequenz-RAM (beschleunigender Ringspeicher)
+#include "rael/freq_ram.hpp"
 
 namespace rael {
 
@@ -83,6 +85,11 @@ public:
     inner_eye::InnerEye& eye() { return eye_; }
     const inner_eye::InnerEye& eye() const { return eye_; }
 
+    // fRAM - Frequenz-RAM (8-Stern beschleunigender Ringspeicher)
+    FreqRAM& fram() { return fram_; }
+    const FreqRAM& fram() const { return fram_; }
+    FreqRAMSnapshot fram_status() const { return fram_.snapshot(); }
+
     // Star8 Themen-Stern
     bool enqueue(Lane lane, const std::string& payload);
     bool enqueue_themed(TaskDomain domain, Lane lane, const std::string& payload);
@@ -115,6 +122,9 @@ private:
 
     // ─── N8: INNERES AUGE ────────────────────────────────────────────────
     inner_eye::InnerEye eye_;
+
+    // ─── fRAM: Frequenz-RAM (8-Stern) ──────────────────────────────────
+    FreqRAM fram_;
 
     // ─── Resonanz-Backbone ───────────────────────────────────────────────
     AetherBus aether_;

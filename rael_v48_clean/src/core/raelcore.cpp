@@ -102,11 +102,18 @@ RaelCore::RaelCore(){
     aether_.ensure_channel(70); // observability active spans
     EventBus::push("BEOBACHTUNG_INIT_OK", "N5 ObservabilityManager aktiv");
 
+    // fRAM: Frequenz-RAM (8-Stern beschleunigender Ringspeicher)
+    // Channels 90-100 auf dem AetherBus
+    fram_.couple_to_bus(aether_, 90);
+    EventBus::push("FRAM_INIT_OK",
+        "fRAM aktiv: 5 Tiers (BLITZ|PULS|WELLE|STROM|OZEAN) "
+        "= 4572 Zellen, 8-Stern Architektur");
+
     // Themen-Stern vollstaendig
     EventBus::push("STAR_THEMES_OK",
-        "Alle 9 Themen-Nodes verdrahtet: "
+        "Alle 9 Themen-Nodes + fRAM verdrahtet: "
         "SPRACHE|GEDAECHTNIS|SICHERHEIT|REFLEXION|MATHEMATIK|"
-        "BEOBACHTUNG|LERNEN|MANIFESTATION|INNERES_AUGE");
+        "BEOBACHTUNG|LERNEN|MANIFESTATION|INNERES_AUGE|fRAM");
 }
 
 RaelCore::~RaelCore(){
@@ -238,6 +245,11 @@ std::string RaelCore::process(const std::string& input){
     // N3 REFLEXION: Auch bei Erfolg reflektieren
     (void)ReflectionEngine::reflect_and_emit(s, r, ActionOutcome::OK, transformed);
 
+    // fRAM: Ergebnis speichern + Zyklus ausfuehren
+    // Frequenz = Kohaerenz × TOR (720 Hz) → hoehere Kohaerenz = hoehere Frequenz
+    fram_.store(NodeTheme::SPRACHE, s.meaning, s.coherence * 720.0);
+    fram_.tick();
+
     return std::string("[RAEL] OK: ") + s.meaning;
 }
 
@@ -288,9 +300,11 @@ std::string RaelCore::process_sprache(const std::string& payload) {
     aether_.publish(12, 1.0, AetherScale::G3_Emotion);
 
     if (!r.resonant) {
+        fram_.store(NodeTheme::SPRACHE, s.meaning, s.coherence * 432.0);
         return "[SPRACHE] WEAK: " + s.meaning;
     }
 
+    fram_.store(NodeTheme::SPRACHE, s.meaning, s.coherence * 720.0);
     return "[SPRACHE] OK: " + s.meaning;
 }
 
@@ -328,6 +342,9 @@ std::string RaelCore::process_gedaechtnis(const std::string& payload) {
     auto& kg = KnowledgeGraph::instance();
     result += " | KG-Knoten: " + std::to_string(kg.get_stats().node_count);
 
+    // fRAM: Gedaechtnis-Ergebnis bei 144 Hz (STRUKTUR)
+    fram_.store(NodeTheme::GEDAECHTNIS, result, 144.0);
+
     return result;
 }
 
@@ -360,6 +377,9 @@ std::string RaelCore::process_sicherheit(const std::string& payload) {
         EventBus::push("SECURITY_HIGH_RISK", payload);
     }
 
+    // fRAM: Sicherheits-Ergebnis bei 53 Hz (GATE53)
+    fram_.store(NodeTheme::SICHERHEIT, result, 53.0);
+
     return result;
 }
 
@@ -387,6 +407,9 @@ std::string RaelCore::process_reflexion(const std::string& payload) {
     // QUINT Phi als Reflexions-Mass
     result += " | Phi: " + std::to_string(quint_.global_phi());
 
+    // fRAM: Reflexion bei 13 Hz (SCHUMANN - Erdresonanz/Bewusstsein)
+    fram_.store(NodeTheme::REFLEXION, result, 13.0);
+
     return result;
 }
 
@@ -413,6 +436,9 @@ std::string RaelCore::process_mathematik(const std::string& payload) {
     result += " | Formeln: " + std::to_string(formulas.size());
     result += " | QUELLE=" + std::to_string(MathCore::QUELLE);
 
+    // fRAM: Mathematik bei 1440 Hz (QUELLE - hoechste Frequenz)
+    fram_.store(NodeTheme::MATHEMATIK, result, 1440.0);
+
     return result;
 }
 
@@ -434,6 +460,9 @@ std::string RaelCore::process_beobachtung(const std::string& payload) {
     result += " | Anomalie: " + std::string(state.anomalie_erkannt ? "JA" : "NEIN");
     result += " | Alpha-Tunnel: " + std::string(state.alpha_tunnel_offen ? "OFFEN" : "ZU");
     result += " | Aktive Sterne: " + std::to_string(state.aktive_sterne);
+
+    // fRAM: Beobachtung bei 720 Hz (TOR - Referenztor)
+    fram_.store(NodeTheme::BEOBACHTUNG, result, 720.0);
 
     return result;
 }
@@ -461,6 +490,9 @@ std::string RaelCore::process_lernen(const std::string& payload) {
     result += " | Kohaerenz: " + std::to_string(s.coherence);
     result += " | Staerke: " + std::to_string(node.strength);
 
+    // fRAM: Lern-Erfahrung bei 5 Hz (MATERIE - tiefste Ebene, Theta)
+    fram_.store(NodeTheme::LERNEN, result, 5.0);
+
     return result;
 }
 
@@ -487,6 +519,9 @@ std::string RaelCore::process_manifestation(const std::string& payload) {
     result += " | Effizienz: " + std::to_string(mresult.efficiency);
     result += " | Output: " + transformed.substr(0, 80);
 
+    // fRAM: Manifestation bei 432 Hz (KAMMER - Heilungsfrequenz)
+    fram_.store(NodeTheme::MANIFESTATION, result, 432.0);
+
     return result;
 }
 
@@ -502,6 +537,10 @@ std::string RaelCore::process_inneres_auge(const std::string& payload) {
     auto& scan = eye_.last_scan();
     aether_.publish(80, (double)scan.overall_level, AetherScale::G4_Ratio);
     aether_.publish(81, (double)eye_.total_scans(), AetherScale::G1_Reflex);
+
+    // fRAM: Inneres Auge bei Gegenfrequenz (QUELLE - Bedrohungslevel × TOR)
+    double eye_freq = 1440.0 - (double)scan.overall_level * 720.0;
+    fram_.store(NodeTheme::INNERES_AUGE, result, eye_freq);
 
     return result;
 }
