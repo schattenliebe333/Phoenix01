@@ -56,19 +56,19 @@ std::array<LaneStats,5> LaneScheduler::lane_stats() const{
     std::lock_guard<std::mutex> g(mtx_);
     return ls_;
 }
-std::array<NodeStats,8> LaneScheduler::node_stats() const{
+std::array<NodeStats,STAR_NODE_COUNT> LaneScheduler::node_stats() const{
     std::lock_guard<std::mutex> g(mtx_);
     return ns_;
 }
 
 void LaneScheduler::mark_taken(size_t node_id, Lane lane){
-    if(node_id>=8) return;
+    if(node_id>=STAR_NODE_COUNT) return;
     std::lock_guard<std::mutex> g(mtx_);
     ns_[node_id].taken++;
     ns_[node_id].last_lane = lane;
 }
 void LaneScheduler::mark_done(size_t node_id){
-    if(node_id>=8) return;
+    if(node_id>=STAR_NODE_COUNT) return;
     std::lock_guard<std::mutex> g(mtx_);
     ns_[node_id].done++;
 }
