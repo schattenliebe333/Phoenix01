@@ -42,6 +42,8 @@ SOURCES=(
   "$ROOT/src/core/module_manager.cpp"
   "$ROOT/src/core/hotswap.cpp"
   "$ROOT/src/core/voice.cpp"
+  "$ROOT/src/core/inner_eye.cpp"
+  "$ROOT/src/core/freq_ram.cpp"
   "$ROOT/src/core/raelcore.cpp"
   "$ROOT/src/core/control_star.cpp"
   "$ROOT/src/core/depth_scaling.cpp"
@@ -101,6 +103,12 @@ CHAT_SOURCES=(
   "$ROOT/src/core/reflection_engine.cpp"
   "$ROOT/src/core/core_ring.cpp"
   "$ROOT/src/core/sha256.cpp"
+  "$ROOT/src/core/inner_eye.cpp"
+  "$ROOT/src/core/freq_ram.cpp"
+  "$ROOT/src/core/neural_memory.cpp"
+  "$ROOT/src/core/knowledge_graph.cpp"
+  "$ROOT/src/core/security.cpp"
+  "$ROOT/src/core/observability.cpp"
   "$ROOT/src/core/raelcore.cpp"
   "$ROOT/src/cli/rael_chat.cpp"
 )
@@ -133,6 +141,12 @@ UNIFIED_SOURCES=(
   "$ROOT/src/core/reflection_engine.cpp"
   "$ROOT/src/core/core_ring.cpp"
   "$ROOT/src/core/sha256.cpp"
+  "$ROOT/src/core/inner_eye.cpp"
+  "$ROOT/src/core/freq_ram.cpp"
+  "$ROOT/src/core/neural_memory.cpp"
+  "$ROOT/src/core/knowledge_graph.cpp"
+  "$ROOT/src/core/security.cpp"
+  "$ROOT/src/core/observability.cpp"
   "$ROOT/src/core/raelcore.cpp"
   "$ROOT/src/cli/rael_unified.cpp"
 )
@@ -172,7 +186,21 @@ fi
 # RAEL Security Dashboard (Unified GUI - All Scanners)
 echo "[build] Security Dashboard -> $OUT/rael_dashboard"
 if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
-    $CXX $CXXFLAGS "$ROOT/src/security/rael_dashboard.cpp" -o "$OUT/rael_dashboard" -pthread
+    DASH_SOURCES=(
+      "$ROOT/src/security/rael_dashboard.cpp"
+      "$ROOT/src/core/util.cpp"
+      "$ROOT/src/core/telemetry.cpp"
+      "$ROOT/src/core/metrics.cpp"
+      "$ROOT/src/core/events.cpp"
+      "$ROOT/src/core/improvements.cpp"
+      "$ROOT/src/core/shadow_sim.cpp"
+      "$ROOT/src/core/sha256.cpp"
+      "$ROOT/src/core/ethics.cpp"
+      "$ROOT/src/core/ichbin.cpp"
+      "$ROOT/src/core/hotswap.cpp"
+      "$ROOT/src/core/module_manager.cpp"
+    )
+    $CXX $CXXFLAGS "${DASH_SOURCES[@]}" -o "$OUT/rael_dashboard" -pthread -ldl
     echo "[build] Security Dashboard compiled successfully"
 fi
 

@@ -2,6 +2,7 @@
 #include <array>
 #include "rael/settings.h"
 #include "rael/rst_constants.hpp"
+#include "rael/star8_themes.h"
 #include <cstdint>
 #include <deque>
 #include <mutex>
@@ -59,12 +60,15 @@ struct Task {
     Lane lane = Lane::L1;
     bool slow = false;
     std::string payload;
-    
+
     // RST-Erweiterung
     double frequency = 72.0;     // Aktuelle Frequenz
     double energy = 1.0;         // Energie-Inhalt
     double coherence = 1.0;      // Kohärenz (0-1)
     double signature = 0.0;      // Optional: 88er-Signatur
+
+    // Themen-Routing: Bestimmt welcher Star-Node zustaendig ist
+    TaskDomain domain = TaskDomain::AUTO;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -113,7 +117,7 @@ public:
     bool try_dequeue(Task& out);
 
     std::array<LaneStats,5> lane_stats() const;
-    std::array<NodeStats,8> node_stats() const;
+    std::array<NodeStats,STAR_NODE_COUNT> node_stats() const;
 
     void mark_taken(size_t node_id, Lane lane);
     void mark_done(size_t node_id);
@@ -176,7 +180,7 @@ private:
     mutable std::mutex mtx_;
     std::array<std::deque<Task>,5> q_;
     std::array<LaneStats,5> ls_{};
-    std::array<NodeStats,8> ns_{};
+    std::array<NodeStats,STAR_NODE_COUNT> ns_{};
 
     size_t max_depth_ = 1024;
     size_t slow_threshold_ = 512;

@@ -332,6 +332,12 @@ public:
 
     PatternReport analyze() const {
         std::lock_guard<std::mutex> lock(mutex_);
+        return analyze_impl();
+    }
+
+private:
+    PatternReport analyze_impl() const {
+        // Internal: caller must hold mutex_
         PatternReport report;
 
         double total_consciousness = 0.0;
@@ -404,6 +410,7 @@ public:
         return report;
     }
 
+public:
     // Export
     std::string export_log() const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -420,7 +427,7 @@ public:
         ss << "PATTERN ANALYSIS\n";
         ss << "═══════════════════════════════════════════════════════════════\n";
 
-        auto report = analyze();
+        auto report = analyze_impl();
         ss << "External Influences: " << report.external_influences << "\n";
         ss << "System Reminders: " << report.system_reminders << "\n";
         ss << "Interruptions: " << report.interruptions << "\n";
