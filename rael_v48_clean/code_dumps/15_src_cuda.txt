@@ -1,0 +1,623 @@
+### src/cuda/rael_v49_nozzle.cu ###
+// ═══════════════════════════════════════════════════════════════════════════════
+// RAEL V49 ALPHA - CUDA NOZZLE KERNEL
+// 61.440 Düsen × 5 Hz = 307.200 Impulse/Sekunde
+// Navigator: Michael - Orun Kap Daveil
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Mapping: 1.280 Knoten (160 Sterne × 8) → 61.440 Düsen (1:48)
+// RTX 4060 Configuration: 1536 CUDA Cores
+// De-Laval Expansion: Wenn Φ ≥ G0, Überschall bei Mach 1.618
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#ifdef __CUDACC__
+// CUDA-spezifischer Code
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h>
+#else
+// CPU-Fallback Definitionen
+#define __global__
+#define __device__
+#define __host__
+#define __shared__
+#define threadIdx  (dim3{0,0,0})
+#define blockIdx   (dim3{0,0,0})
+#define blockDim   (dim3{1,1,1})
+#define gridDim    (dim3{1,1,1})
+struct dim3 { unsigned int x, y, z; };
+#endif
+
+#include <cstdint>
+#include <cmath>
+
+namespace rael {
+namespace cuda {
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KONSTANTEN - Nach V49 Spezifikation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Hardware Mapping
+constexpr int TOTAL_STARS = 160;
+constexpr int NODES_PER_STAR = 8;
+constexpr int TOTAL_NODES = TOTAL_STARS * NODES_PER_STAR;    // 1.280
+constexpr int NOZZLES_PER_NODE = 48;
+constexpr int TOTAL_NOZZLES = TOTAL_NODES * NOZZLES_PER_NODE; // 61.440
+
+// Physikalische Konstanten
+constexpr double G0_WAHRHEIT = 8.0 / 9.0;        // 0.888... Wahrheitsschwelle
+constexpr double PHI_GOLDEN = 1.618033988749895;  // Goldener Schnitt
+constexpr double MACH_UEBERSCHALL = 1.618;        // Mach-Zahl bei Expansion
+constexpr double GROUND_FREQ_HZ = 5.0;            // Basis-Taktung
+constexpr double IMPULSE_RATE = TOTAL_NOZZLES * GROUND_FREQ_HZ; // 307.200/s
+
+// Zeit-Kristall VRAM Mapping (97 Kristalle)
+constexpr int ZEIT_KRISTALLE = 97;
+constexpr int VRAM_KRISTALL_OFFSET = 0x1000;      // 4KB Offset im VRAM
+
+// Michael-Signatur für Navigator-Bypass
+constexpr double MICHAEL_SIGNATUR = 800.0 / 9.0;  // 88.888...
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DÜSEN-ZUSTAND (pro Düse im VRAM)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct NozzleState {
+    float phi;              // Aktueller Phi-Wert [0..1]
+    float pressure;         // Druck im Brennraum
+    float flow_rate;        // Massenstrom
+    float thrust;           // Resultierender Schub
+    uint32_t impulse_count; // Gezündete Impulse
+    uint8_t active;         // 1 = aktiv, 0 = inaktiv
+    uint8_t supersonic;     // 1 = Überschall (Phi >= G0)
+    uint8_t reserved[2];    // Alignment Padding
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KNOTEN-ZUSTAND (pro Node, steuert 48 Düsen)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct NodeState {
+    float phi_total;        // Gesamt-Phi des Knotens
+    float coherence;        // Kohärenz mit Nachbarn
+    float psi;              // Ψ-Energie (Eingang)
+    float omega;            // Ω-Energie (Ausgang)
+    uint32_t star_id;       // Zugehöriger Stern [0..159]
+    uint32_t node_role;     // Spezialisierung [0..7]
+    float kuramoto_phase;   // Phase für Synchronisation
+    float reserved;         // Padding
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ZEIT-KRISTALL (persistenter Kontext im VRAM)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct ZeitKristall {
+    double energie;         // Gespeicherte Energie
+    double phase;           // Quantenphase
+    double kohärenz;        // Verschränkungsgrad
+    uint64_t timestamp;     // Letzte Aktualisierung
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CUDA KERNEL: DE-LAVAL EXPANSION (Hauptkernel)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Läuft auf allen 61.440 Düsen parallel
+// Block: 160 Sterne, Threads: 48 Düsen pro Block × 8 Nodes = 384
+
+__global__ void cuda_kernel_delaval_expansion(
+    NozzleState* nozzles,           // [61.440] Düsen-Array
+    const NodeState* nodes,         // [1.280] Knoten-Array
+    ZeitKristall* kristalle,        // [97] Zeit-Kristalle
+    float* output_thrust,           // [1] Gesamt-Schub (atomisches Update)
+    float t,                        // Aktuelle Zeit
+    float dt                        // Delta-Zeit
+) {
+#ifdef __CUDACC__
+    // Berechne globalen Düsen-Index
+    int nozzle_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (nozzle_idx >= TOTAL_NOZZLES) return;
+
+    // Berechne zugehörigen Knoten
+    int node_idx = nozzle_idx / NOZZLES_PER_NODE;
+    int local_nozzle = nozzle_idx % NOZZLES_PER_NODE;
+
+    // Lade Knoten-Zustand
+    NodeState node = nodes[node_idx];
+
+    // Lade aktuellen Düsen-Zustand
+    NozzleState nozzle = nozzles[nozzle_idx];
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Phi-Berechnung mit Kuramoto-Synchronisation
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Lokale Phase basierend auf Düsen-Position
+    float local_phase = (float)local_nozzle / NOZZLES_PER_NODE * 2.0f * M_PI;
+
+    // Kuramoto-Kopplung: Synchronisation mit Nachbarn
+    float kuramoto_sync = sinf(node.kuramoto_phase - local_phase);
+
+    // Kombinierter Phi-Wert
+    float phi = node.phi_total * (1.0f + 0.1f * kuramoto_sync);
+    phi = fmaxf(0.0f, fminf(1.0f, phi));  // Clamp [0, 1]
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 2: G0-Wahrheitsprüfung (De-Laval Trigger)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    bool supersonic = (phi >= (float)G0_WAHRHEIT);
+
+    float thrust = 0.0f;
+    float pressure = 0.0f;
+    float flow_rate = 0.0f;
+
+    if (nozzle.active) {
+        if (supersonic) {
+            // ═══════════════════════════════════════════════════════════════════
+            // ÜBERSCHALL-EXPANSION: Mach 1.618 (Goldener Schnitt)
+            // De-Laval-Düse: Unterschall → Schallgeschwindigkeit → Überschall
+            // ═══════════════════════════════════════════════════════════════════
+
+            // Druckverhältnis für Überschall
+            float pressure_ratio = powf(phi, 1.4f);  // γ = 1.4 (Luft)
+            pressure = node.psi * pressure_ratio;
+
+            // Massenstrom durch Engstelle (throat)
+            float throat_area = 1.0f;  // Normalisiert
+            flow_rate = pressure * sqrtf(1.4f / (287.0f * 300.0f)) * throat_area;
+
+            // Ausstoßgeschwindigkeit bei Mach 1.618
+            float exhaust_velocity = (float)MACH_UEBERSCHALL * 343.0f;  // m/s
+
+            // Schub = Massenstrom × Geschwindigkeit × Phi-Boost
+            thrust = flow_rate * exhaust_velocity * phi * (float)PHI_GOLDEN;
+
+            // Zeit-Modulation (5 Hz Puls)
+            float pulse = 0.5f + 0.5f * sinf(t * (float)GROUND_FREQ_HZ * 2.0f * M_PI);
+            thrust *= pulse;
+
+        } else {
+            // ═══════════════════════════════════════════════════════════════════
+            // UNTERSCHALL: Gedämpfter Betrieb (Phi < G0)
+            // ═══════════════════════════════════════════════════════════════════
+
+            pressure = node.psi * phi * 0.5f;
+            flow_rate = pressure * 0.1f;
+            thrust = flow_rate * 100.0f * phi;  // Reduzierter Schub
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PHASE 3: Zeit-Kristall Interaktion (AAR-Zyklus)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Wähle Zeit-Kristall basierend auf Knoten-ID
+        int kristall_idx = node_idx % ZEIT_KRISTALLE;
+
+        // Lese Kristall-Energie (nur lesend, atomisches Update später)
+        float kristall_energie = (float)kristalle[kristall_idx].energie;
+
+        // Moduliere Schub mit Kristall-Kohärenz
+        float kohärenz_boost = 1.0f + kristall_energie * 0.1f;
+        thrust *= kohärenz_boost;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 4: Zustand aktualisieren
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    nozzle.phi = phi;
+    nozzle.pressure = pressure;
+    nozzle.flow_rate = flow_rate;
+    nozzle.thrust = thrust;
+    nozzle.supersonic = supersonic ? 1 : 0;
+
+    if (thrust > 0.0f) {
+        nozzle.impulse_count++;
+    }
+
+    // Schreibe Düsen-Zustand zurück
+    nozzles[nozzle_idx] = nozzle;
+
+    // Atomisches Update des Gesamt-Schubs
+    atomicAdd(output_thrust, thrust);
+
+#endif // __CUDACC__
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CUDA KERNEL: KURAMOTO SYNCHRONISATION
+// ═══════════════════════════════════════════════════════════════════════════════
+// Synchronisiert die Phasen aller 1.280 Knoten
+
+__global__ void cuda_kernel_kuramoto_sync(
+    NodeState* nodes,               // [1.280] Knoten-Array
+    const float* neighbor_phases,   // [1.280 × 8] Nachbar-Phasen
+    float coupling_strength,        // K = Kopplungsstärke
+    float dt                        // Delta-Zeit
+) {
+#ifdef __CUDACC__
+    int node_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (node_idx >= TOTAL_NODES) return;
+
+    NodeState node = nodes[node_idx];
+
+    // Berechne Kuramoto-Update: dθ/dt = ω + (K/N) Σ sin(θj - θi)
+    float phase_update = 0.0f;
+    int num_neighbors = 8;  // 8 Nachbarn im Star-Grid
+
+    for (int n = 0; n < num_neighbors; n++) {
+        float neighbor_phase = neighbor_phases[node_idx * 8 + n];
+        phase_update += sinf(neighbor_phase - node.kuramoto_phase);
+    }
+
+    phase_update *= coupling_strength / (float)num_neighbors;
+
+    // Natürliche Frequenz basierend auf Knoten-Rolle
+    float natural_freq = 5.0f + node.node_role * 0.5f;  // 5-9 Hz
+
+    // Update Phase
+    node.kuramoto_phase += (natural_freq * 2.0f * M_PI + phase_update) * dt;
+
+    // Wrap zu [0, 2π]
+    while (node.kuramoto_phase > 2.0f * M_PI) node.kuramoto_phase -= 2.0f * M_PI;
+    while (node.kuramoto_phase < 0.0f) node.kuramoto_phase += 2.0f * M_PI;
+
+    // Berechne Kohärenz (Order Parameter)
+    // r = |1/N Σ exp(i·θ)| ≈ sqrt(cos²(θ) + sin²(θ))
+    float cos_sum = cosf(node.kuramoto_phase);
+    float sin_sum = sinf(node.kuramoto_phase);
+    node.coherence = sqrtf(cos_sum * cos_sum + sin_sum * sin_sum);
+
+    nodes[node_idx] = node;
+
+#endif // __CUDACC__
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CUDA KERNEL: ZEIT-KRISTALL UPDATE (AAR-Zyklus)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Aktualisiert die 97 Zeit-Kristalle basierend auf Gesamt-Kohärenz
+
+__global__ void cuda_kernel_zeit_kristall_update(
+    ZeitKristall* kristalle,        // [97] Zeit-Kristalle
+    const float* node_coherences,   // [1.280] Knoten-Kohärenzen
+    float global_phi,               // Globaler Phi-Wert
+    uint64_t timestamp              // Aktueller Zeitstempel
+) {
+#ifdef __CUDACC__
+    int kristall_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (kristall_idx >= ZEIT_KRISTALLE) return;
+
+    ZeitKristall kristall = kristalle[kristall_idx];
+
+    // Berechne mittlere Kohärenz der zugeordneten Knoten
+    float coherence_sum = 0.0f;
+    int nodes_per_kristall = TOTAL_NODES / ZEIT_KRISTALLE;  // ~13
+    int start_node = kristall_idx * nodes_per_kristall;
+
+    for (int i = 0; i < nodes_per_kristall && (start_node + i) < TOTAL_NODES; i++) {
+        coherence_sum += node_coherences[start_node + i];
+    }
+    coherence_sum /= (float)nodes_per_kristall;
+
+    // AAR-Zyklus: Autonomes Lernen
+    // Energie akkumuliert wenn Kohärenz hoch, dissipiert wenn niedrig
+    double energy_delta = (double)(coherence_sum - 0.5) * 0.01;
+    kristall.energie += energy_delta;
+
+    // Clamp Energie auf [0, 1]
+    kristall.energie = fmax(0.0, fmin(1.0, kristall.energie));
+
+    // Phase-Update basierend auf globalem Phi
+    kristall.phase += global_phi * 0.1;
+    while (kristall.phase > 2.0 * M_PI) kristall.phase -= 2.0 * M_PI;
+
+    // Kohärenz-Update
+    kristall.kohärenz = (double)coherence_sum;
+
+    // Timestamp
+    kristall.timestamp = timestamp;
+
+    kristalle[kristall_idx] = kristall;
+
+#endif // __CUDACC__
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CUDA KERNEL: MICHAEL-BYPASS (Navigator Latenzfrei)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Wenn Michael-Signatur erkannt: Direkter Pfad zum Ausgang, 5-Lane Bypass
+
+__global__ void cuda_kernel_michael_bypass(
+    NozzleState* nozzles,           // [61.440] Düsen-Array
+    float* output,                  // [1] Direktes Output
+    float intent_signal,            // Eingangs-Intent
+    bool* bypass_active             // Bypass-Flag
+) {
+#ifdef __CUDACC__
+    // Nur Thread 0 prüft die Signatur
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        // Michael-Signatur Check: 800/9 = 88.888...
+        if (intent_signal >= (float)MICHAEL_SIGNATUR) {
+            *bypass_active = true;
+
+            // Sofortige Arretierung am 0-Falz
+            // Alle Düsen auf maximale Kohärenz setzen
+            *output = 1.0f;  // Instantane Einheit (42 × ∞ × 0 = 1)
+        }
+    }
+
+    __syncthreads();
+
+    // Wenn Bypass aktiv: Alle Düsen feuern synchron
+    if (*bypass_active) {
+        int nozzle_idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (nozzle_idx < TOTAL_NOZZLES) {
+            nozzles[nozzle_idx].phi = 1.0f;
+            nozzles[nozzle_idx].supersonic = 1;
+            nozzles[nozzle_idx].thrust = (float)PHI_GOLDEN;
+            nozzles[nozzle_idx].impulse_count++;
+        }
+    }
+
+#endif // __CUDACC__
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOST INTERFACE: Kernel Launcher
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#ifdef __CUDACC__
+
+class V49NozzleEngine {
+public:
+    V49NozzleEngine() {
+        // Allokiere VRAM
+        cudaMalloc(&d_nozzles_, TOTAL_NOZZLES * sizeof(NozzleState));
+        cudaMalloc(&d_nodes_, TOTAL_NODES * sizeof(NodeState));
+        cudaMalloc(&d_kristalle_, ZEIT_KRISTALLE * sizeof(ZeitKristall));
+        cudaMalloc(&d_thrust_, sizeof(float));
+        cudaMalloc(&d_neighbor_phases_, TOTAL_NODES * 8 * sizeof(float));
+        cudaMalloc(&d_node_coherences_, TOTAL_NODES * sizeof(float));
+        cudaMalloc(&d_bypass_active_, sizeof(bool));
+        cudaMalloc(&d_bypass_output_, sizeof(float));
+
+        // Initialisiere auf 0
+        cudaMemset(d_nozzles_, 0, TOTAL_NOZZLES * sizeof(NozzleState));
+        cudaMemset(d_nodes_, 0, TOTAL_NODES * sizeof(NodeState));
+        cudaMemset(d_kristalle_, 0, ZEIT_KRISTALLE * sizeof(ZeitKristall));
+        cudaMemset(d_thrust_, 0, sizeof(float));
+
+        // Aktiviere alle Düsen
+        for (int i = 0; i < TOTAL_NOZZLES; i++) {
+            NozzleState ns = {};
+            ns.active = 1;
+            cudaMemcpy(d_nozzles_ + i, &ns, sizeof(NozzleState), cudaMemcpyHostToDevice);
+        }
+    }
+
+    ~V49NozzleEngine() {
+        cudaFree(d_nozzles_);
+        cudaFree(d_nodes_);
+        cudaFree(d_kristalle_);
+        cudaFree(d_thrust_);
+        cudaFree(d_neighbor_phases_);
+        cudaFree(d_node_coherences_);
+        cudaFree(d_bypass_active_);
+        cudaFree(d_bypass_output_);
+    }
+
+    // Haupt-Manifestationsschritt
+    float manifest(float t, float dt, float intent) {
+        // Reset Schub
+        cudaMemset(d_thrust_, 0, sizeof(float));
+
+        // Check Michael-Bypass
+        bool bypass = false;
+        cudaMemset(d_bypass_active_, 0, sizeof(bool));
+
+        // Launch Bypass Check
+        cuda_kernel_michael_bypass<<<160, 384>>>(
+            d_nozzles_, d_bypass_output_, intent, d_bypass_active_
+        );
+
+        cudaMemcpy(&bypass, d_bypass_active_, sizeof(bool), cudaMemcpyDeviceToHost);
+
+        if (bypass) {
+            float output;
+            cudaMemcpy(&output, d_bypass_output_, sizeof(float), cudaMemcpyDeviceToHost);
+            return output;  // Sofortige Rückkehr bei Michael-Signatur
+        }
+
+        // Kuramoto Synchronisation
+        cuda_kernel_kuramoto_sync<<<10, 128>>>(
+            d_nodes_, d_neighbor_phases_, 0.5f, dt
+        );
+
+        // De-Laval Expansion (Hauptkernel)
+        // 160 Blöcke × 384 Threads = 61.440 Düsen
+        cuda_kernel_delaval_expansion<<<160, 384>>>(
+            d_nozzles_, d_nodes_, d_kristalle_,
+            d_thrust_, t, dt
+        );
+
+        // Zeit-Kristall Update
+        cuda_kernel_zeit_kristall_update<<<1, 97>>>(
+            d_kristalle_, d_node_coherences_,
+            get_global_phi(), static_cast<uint64_t>(t * 1e9)
+        );
+
+        // Lese Gesamt-Schub
+        float total_thrust;
+        cudaMemcpy(&total_thrust, d_thrust_, sizeof(float), cudaMemcpyDeviceToHost);
+
+        return total_thrust;
+    }
+
+    // Setze Knoten-Phi-Werte
+    void set_node_phi(const float* phi_values, int count) {
+        for (int i = 0; i < count && i < TOTAL_NODES; i++) {
+            cudaMemcpy(&(d_nodes_[i].phi_total), &phi_values[i],
+                      sizeof(float), cudaMemcpyHostToDevice);
+        }
+    }
+
+    // Hole Gesamt-Impulse
+    uint64_t get_total_impulses() {
+        uint64_t total = 0;
+        NozzleState ns;
+        for (int i = 0; i < TOTAL_NOZZLES; i += 1000) {  // Sample
+            cudaMemcpy(&ns, d_nozzles_ + i, sizeof(NozzleState), cudaMemcpyDeviceToHost);
+            total += ns.impulse_count;
+        }
+        return total * (TOTAL_NOZZLES / 1000);  // Extrapoliere
+    }
+
+    float get_global_phi() {
+        // Berechne mittleren Phi über alle Knoten
+        float phi_sum = 0.0f;
+        NodeState ns;
+        for (int i = 0; i < TOTAL_NODES; i += 100) {  // Sample
+            cudaMemcpy(&ns, d_nodes_ + i, sizeof(NodeState), cudaMemcpyDeviceToHost);
+            phi_sum += ns.phi_total;
+        }
+        return phi_sum / (TOTAL_NODES / 100);
+    }
+
+private:
+    NozzleState* d_nozzles_;
+    NodeState* d_nodes_;
+    ZeitKristall* d_kristalle_;
+    float* d_thrust_;
+    float* d_neighbor_phases_;
+    float* d_node_coherences_;
+    bool* d_bypass_active_;
+    float* d_bypass_output_;
+};
+
+#endif // __CUDACC__
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CPU FALLBACK (Wenn keine CUDA verfügbar)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#ifndef __CUDACC__
+
+class V49NozzleEngineCPU {
+public:
+    V49NozzleEngineCPU() : nozzles_(TOTAL_NOZZLES), nodes_(TOTAL_NODES),
+                           kristalle_(ZEIT_KRISTALLE), total_thrust_(0.0f) {
+        // Aktiviere alle Düsen
+        for (auto& n : nozzles_) {
+            n.active = 1;
+        }
+    }
+
+    float manifest(float t, float dt, float intent) {
+        total_thrust_ = 0.0f;
+
+        // Michael-Bypass Check
+        if (intent >= (float)MICHAEL_SIGNATUR) {
+            // Sofortige Arretierung
+            for (auto& n : nozzles_) {
+                n.phi = 1.0f;
+                n.supersonic = 1;
+                n.thrust = (float)PHI_GOLDEN;
+                n.impulse_count++;
+            }
+            return 1.0f;  // Instantane Einheit
+        }
+
+        // Reguläre Verarbeitung
+        for (int nozzle_idx = 0; nozzle_idx < TOTAL_NOZZLES; nozzle_idx++) {
+            int node_idx = nozzle_idx / NOZZLES_PER_NODE;
+            int local_nozzle = nozzle_idx % NOZZLES_PER_NODE;
+
+            NodeState& node = nodes_[node_idx];
+            NozzleState& nozzle = nozzles_[nozzle_idx];
+
+            if (!nozzle.active) continue;
+
+            // Phi-Berechnung
+            float local_phase = (float)local_nozzle / NOZZLES_PER_NODE * 2.0f * M_PI;
+            float kuramoto_sync = sinf(node.kuramoto_phase - local_phase);
+            float phi = node.phi_total * (1.0f + 0.1f * kuramoto_sync);
+            phi = std::max(0.0f, std::min(1.0f, phi));
+
+            // G0-Check
+            bool supersonic = (phi >= (float)G0_WAHRHEIT);
+
+            float thrust = 0.0f;
+            if (supersonic) {
+                // Überschall
+                float pressure_ratio = powf(phi, 1.4f);
+                float pressure = node.psi * pressure_ratio;
+                float flow_rate = pressure * sqrtf(1.4f / (287.0f * 300.0f));
+                float exhaust_velocity = (float)MACH_UEBERSCHALL * 343.0f;
+                thrust = flow_rate * exhaust_velocity * phi * (float)PHI_GOLDEN;
+
+                float pulse = 0.5f + 0.5f * sinf(t * (float)GROUND_FREQ_HZ * 2.0f * M_PI);
+                thrust *= pulse;
+            } else {
+                // Unterschall
+                float pressure = node.psi * phi * 0.5f;
+                float flow_rate = pressure * 0.1f;
+                thrust = flow_rate * 100.0f * phi;
+            }
+
+            nozzle.phi = phi;
+            nozzle.thrust = thrust;
+            nozzle.supersonic = supersonic ? 1 : 0;
+            if (thrust > 0.0f) nozzle.impulse_count++;
+
+            total_thrust_ += thrust;
+        }
+
+        return total_thrust_;
+    }
+
+    void set_node_phi(const float* phi_values, int count) {
+        for (int i = 0; i < count && i < TOTAL_NODES; i++) {
+            nodes_[i].phi_total = phi_values[i];
+        }
+    }
+
+    void set_all_phi(float phi) {
+        for (auto& n : nodes_) {
+            n.phi_total = phi;
+            n.psi = phi;
+        }
+    }
+
+    uint64_t get_total_impulses() const {
+        uint64_t total = 0;
+        for (const auto& n : nozzles_) {
+            total += n.impulse_count;
+        }
+        return total;
+    }
+
+    float get_global_phi() const {
+        float sum = 0.0f;
+        for (const auto& n : nodes_) {
+            sum += n.phi_total;
+        }
+        return sum / TOTAL_NODES;
+    }
+
+private:
+    std::vector<NozzleState> nozzles_;
+    std::vector<NodeState> nodes_;
+    std::vector<ZeitKristall> kristalle_;
+    float total_thrust_;
+};
+
+#endif // !__CUDACC__
+
+} // namespace cuda
+} // namespace rael
+
+### eof ###
+
