@@ -1,0 +1,25 @@
+### config/modules_manifest.json ###
+{
+  "version": "1.0",
+  "description": "RAEL Module Trust Manifest",
+  "generated": "2026-02-05",
+  "modules": [
+    {
+      "name": "math_pack",
+      "file": "libmath_pack.so",
+      "sha256": "f332c993bb6635462ba86c0d6b98ada00ab5ba6d72af920bbddac5ab58c539f5",
+      "description": "Additional mathematical formulas module",
+      "author": "RAEL Team"
+    },
+    {
+      "name": "sem_quint",
+      "file": "libsem_quint.so",
+      "sha256": "450568552b405751248d3b36fd5fee6c1db6d12d4f0f24fba7bdb95e54266fb1",
+      "description": "Semantic processing with 5D-Quint integration",
+      "author": "RAEL Team"
+    }
+  ]
+}
+
+### eof ###
+

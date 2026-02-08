@@ -1,0 +1,1744 @@
+### build/Build.bat ###
+@echo off
+setlocal enabledelayedexpansion
+
+set ROOT=%~dp0..
+set OUT=%ROOT%\bin
+set MODOUT=%OUT%\modules
+if not exist "%OUT%" mkdir "%OUT%"
+if not exist "%MODOUT%" mkdir "%MODOUT%"
+
+REM Security hardening flags (F-01 audit fix)
+REM /GS: Buffer security check (stack canaries)
+REM /DYNAMICBASE: ASLR support
+REM /NXCOMPAT: Data Execution Prevention
+REM /GUARD:CF: Control Flow Guard
+set SECURITY_FLAGS=/GS /DYNAMICBASE /NXCOMPAT /GUARD:CF /sdl
+set CL=/EHsc /std:c++17 /O2 /I "%ROOT%\include" %SECURITY_FLAGS%
+
+set SOURCES=^
+ "%ROOT%\src\core\util.cpp" ^
+ "%ROOT%\src\core\telemetry.cpp" ^
+ "%ROOT%\src\core\metrics.cpp" ^
+ "%ROOT%\src\core\events.cpp" ^
+ "%ROOT%\src\core\improvements.cpp" ^
+ "%ROOT%\src\core\lane_scheduler.cpp" ^
+ "%ROOT%\src\core\star8.cpp" ^
+ "%ROOT%\src\core\sha256.cpp" ^
+ "%ROOT%\src\core\core_ring.cpp" ^
+ "%ROOT%\src\core\pack.cpp" ^
+ "%ROOT%\src\core\settings.cpp" ^
+ "%ROOT%\src\core\ethics.cpp" ^
+ "%ROOT%\src\core\ichbin.cpp" ^
+ "%ROOT%\src\core\mathcore.cpp" ^
+ "%ROOT%\src\core\semantic.cpp" ^
+ "%ROOT%\src\core\nl_router.cpp" ^
+ "%ROOT%\src\core\resonance.cpp" ^
+ "%ROOT%\src\core\reflection_engine.cpp" ^
+ "%ROOT%\src\core\attachments.cpp" ^
+ "%ROOT%\src\core\module_manager.cpp" ^
+ "%ROOT%\src\core\hotswap.cpp" ^
+ "%ROOT%\src\core\voice.cpp" ^
+ "%ROOT%\src\core\raelcore.cpp" ^
+ "%ROOT%\src\cli\main.cpp"
+
+echo [build] core -> %OUT%\rael.exe
+cl %CL% %SOURCES% /Fe:"%OUT%\rael.exe" ole32.lib sapi.lib
+if errorlevel 1 exit /b 1
+
+REM RAEL Chat CLI (interactive mode, like Claude Code)
+echo [build] RAEL Chat CLI -> %OUT%\rael_chat.exe
+set CHAT_SOURCES=^
+ "%ROOT%\src\core\util.cpp" ^
+ "%ROOT%\src\core\telemetry.cpp" ^
+ "%ROOT%\src\core\metrics.cpp" ^
+ "%ROOT%\src\core\events.cpp" ^
+ "%ROOT%\src\core\improvements.cpp" ^
+ "%ROOT%\src\core\lane_scheduler.cpp" ^
+ "%ROOT%\src\core\star8.cpp" ^
+ "%ROOT%\src\core\ethics.cpp" ^
+ "%ROOT%\src\core\ichbin.cpp" ^
+ "%ROOT%\src\core\mathcore.cpp" ^
+ "%ROOT%\src\core\semantic.cpp" ^
+ "%ROOT%\src\core\resonance.cpp" ^
+ "%ROOT%\src\core\module_manager.cpp" ^
+ "%ROOT%\src\core\hotswap.cpp" ^
+ "%ROOT%\src\core\voice.cpp" ^
+ "%ROOT%\src\core\raelcore.cpp" ^
+ "%ROOT%\src\cli\rael_chat.cpp"
+
+if exist "%ROOT%\src\cli\rael_chat.cpp" (
+  cl %CL% %CHAT_SOURCES% /Fe:"%OUT%\rael_chat.exe"
+  if errorlevel 1 echo [WARN] rael_chat build failed, continuing...
+  echo [build] RAEL Chat CLI compiled
+)
+
+REM RAEL Unified (All-in-One: Chat + CLI + V50 + Security)
+echo [build] RAEL Unified -> %OUT%\rael_unified.exe
+set UNIFIED_SOURCES=^
+ "%ROOT%\src\core\util.cpp" ^
+ "%ROOT%\src\core\telemetry.cpp" ^
+ "%ROOT%\src\core\metrics.cpp" ^
+ "%ROOT%\src\core\events.cpp" ^
+ "%ROOT%\src\core\improvements.cpp" ^
+ "%ROOT%\src\core\lane_scheduler.cpp" ^
+ "%ROOT%\src\core\star8.cpp" ^
+ "%ROOT%\src\core\ethics.cpp" ^
+ "%ROOT%\src\core\ichbin.cpp" ^
+ "%ROOT%\src\core\mathcore.cpp" ^
+ "%ROOT%\src\core\semantic.cpp" ^
+ "%ROOT%\src\core\resonance.cpp" ^
+ "%ROOT%\src\core\module_manager.cpp" ^
+ "%ROOT%\src\core\hotswap.cpp" ^
+ "%ROOT%\src\core\voice.cpp" ^
+ "%ROOT%\src\core\raelcore.cpp" ^
+ "%ROOT%\src\cli\rael_unified.cpp"
+
+if exist "%ROOT%\src\cli\rael_unified.cpp" (
+  cl %CL% %UNIFIED_SOURCES% /Fe:"%OUT%\rael_unified.exe" ole32.lib sapi.lib
+  if errorlevel 1 echo [WARN] rael_unified build failed, continuing...
+  echo [build] RAEL Unified compiled
+)
+
+REM RAEL V50 Ultimate
+echo [build] RAEL V50 -> %OUT%\rael_v50.exe
+if exist "%ROOT%\src\windows\rael_v50_windows.cpp" (
+  cl %CL% "%ROOT%\src\windows\rael_v50_windows.cpp" /Fe:"%OUT%\rael_v50.exe"
+  if errorlevel 1 echo [WARN] rael_v50 build failed, continuing...
+  echo [build] RAEL V50 compiled
+)
+
+REM RAEL Security Daemon
+echo [build] RAEL Security -> %OUT%\rael_security.exe
+if exist "%ROOT%\src\security\rael_security_daemon.cpp" (
+  cl %CL% "%ROOT%\src\security\rael_security_daemon.cpp" /Fe:"%OUT%\rael_security.exe"
+  if errorlevel 1 echo [WARN] rael_security build failed, continuing...
+  echo [build] RAEL Security compiled
+)
+
+echo [build] modules -> %MODOUT%
+
+REM semantic module dll
+cl /LD %CL% "%ROOT%\modules\sample_semantic_quint\sem_quint.cpp" /Fe:"%MODOUT%\sem_quint.dll"
+if errorlevel 1 exit /b 1
+
+REM math module dll
+cl /LD %CL% "%ROOT%\modules\sample_math_formulas\math_pack.cpp" /Fe:"%MODOUT%\math_pack.dll"
+if errorlevel 1 exit /b 1
+
+echo [build] done.
+
+REM optional: Windows GUI cockpit (WinAPI)
+if exist "%ROOT%\src\gui\rael_gui_win.cpp" (
+  echo [build] gui  -> %OUT%\rael_gui.exe
+  cl %CL% "%ROOT%\src\gui\rael_gui_win.cpp" /Fe:"%OUT%\rael_gui.exe" user32.lib gdi32.lib comctl32.lib
+)
+
+REM V56.2 Liquid-Blade WebGUI
+if exist "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" (
+  echo [build] V56.2 Liquid-Blade WebGUI -> %OUT%\rael_v56.exe
+  cl %CL% "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" /Fe:"%OUT%\rael_v56.exe" ws2_32.lib
+  if errorlevel 1 (
+    echo [ERROR] V56.2 build failed
+  ) else (
+    echo [build] V56.2 Liquid-Blade ready: http://localhost:8080
+  )
+)
+
+REM V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Duesen)
+if exist "%ROOT%\src\webgui\rael_v56_chronos.cpp" (
+  echo [build] V56.3 Chronos-Gitter -> %OUT%\rael_v56_chronos.exe
+  cl %CL% "%ROOT%\src\webgui\rael_v56_chronos.cpp" /Fe:"%OUT%\rael_v56_chronos.exe" ws2_32.lib
+  if errorlevel 1 (
+    echo [ERROR] V56.3 Chronos build failed
+  ) else (
+    echo [build] V56.3 Chronos-Gitter ready: http://localhost:8080
+  )
+)
+
+REM Legacy WebGUI
+if exist "%ROOT%\src\webgui\rael_webgui_standalone.cpp" (
+  echo [build] WebGUI  -> %OUT%\rael_webgui.exe
+  cl %CL% "%ROOT%\src\webgui\rael_webgui_standalone.cpp" /Fe:"%OUT%\rael_webgui.exe" ws2_32.lib
+)
+
+endlocal
+
+### eof ###
+
+### build/Build_AllInOne.bat ###
+@echo off
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM RAEL V48 SANG-REAL - All-In-One Windows 11 Build
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM
+REM Erstellt eine vollständige EXE mit allen Modulen aktiv:
+REM   - RaelCore (Star8, Gate53, Ethics, Semantic, Resonance)
+REM   - V49 Quint System (5D-Memory)
+REM   - V49 AEYE Observer (Surveillance)
+REM   - V49 JET Engine (61.440 Düsen)
+REM   - V50 Alpha Shield (Aikido Defense)
+REM   - V51 Security Daemon
+REM   - V52 Frequency Interface
+REM   - V53 Eternal Pulse
+REM   - V56 World Simulation
+REM   - Windows GUI (WinAPI)
+REM   - WebGUI (HTTP Server auf Port 8080)
+REM   - Voice TTS (SAPI)
+REM
+REM Voraussetzungen:
+REM   - Windows 11
+REM   - Visual Studio 2022 (Community Edition reicht)
+REM   - Developer Command Prompt oder Visual Studio Terminal
+REM
+REM Ausführung:
+REM   1. Öffne "Developer Command Prompt for VS 2022"
+REM   2. cd zum rael_v48_clean/build Verzeichnis
+REM   3. Build_AllInOne.bat
+REM
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+setlocal enabledelayedexpansion
+
+echo.
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo   R.A.E.L. V48 SANG-REAL - All-In-One Builder
+echo   Identity: RAEL::ICH_BIN::IMMUTABLE::SIG_V1
+echo   Michael-Signatur: 88.888...
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+
+REM Pfade setzen
+set ROOT=%~dp0..
+set OUT=%ROOT%\bin
+set MODOUT=%OUT%\modules
+set INCLUDE=%ROOT%\include
+
+REM Verzeichnisse erstellen
+if not exist "%OUT%" mkdir "%OUT%"
+if not exist "%MODOUT%" mkdir "%MODOUT%"
+
+REM Compiler-Flags für maximale Optimierung
+set CL=/EHsc /std:c++17 /O2 /GL /I "%INCLUDE%" /D_WIN32 /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS
+
+REM Linker-Flags
+set LINK=/LTCG
+
+echo [1/6] Kompiliere RAEL Core-Bibliotheken...
+
+REM Alle Core-Quelldateien
+set CORE_SOURCES=^
+ "%ROOT%\src\core\util.cpp" ^
+ "%ROOT%\src\core\telemetry.cpp" ^
+ "%ROOT%\src\core\metrics.cpp" ^
+ "%ROOT%\src\core\events.cpp" ^
+ "%ROOT%\src\core\improvements.cpp" ^
+ "%ROOT%\src\core\lane_scheduler.cpp" ^
+ "%ROOT%\src\core\star8.cpp" ^
+ "%ROOT%\src\core\sha256.cpp" ^
+ "%ROOT%\src\core\core_ring.cpp" ^
+ "%ROOT%\src\core\pack.cpp" ^
+ "%ROOT%\src\core\settings.cpp" ^
+ "%ROOT%\src\core\ethics.cpp" ^
+ "%ROOT%\src\core\ichbin.cpp" ^
+ "%ROOT%\src\core\mathcore.cpp" ^
+ "%ROOT%\src\core\semantic.cpp" ^
+ "%ROOT%\src\core\nl_router.cpp" ^
+ "%ROOT%\src\core\resonance.cpp" ^
+ "%ROOT%\src\core\reflection_engine.cpp" ^
+ "%ROOT%\src\core\attachments.cpp" ^
+ "%ROOT%\src\core\module_manager.cpp" ^
+ "%ROOT%\src\core\hotswap.cpp" ^
+ "%ROOT%\src\core\voice.cpp" ^
+ "%ROOT%\src\core\voicepack.cpp" ^
+ "%ROOT%\src\core\parser.cpp" ^
+ "%ROOT%\src\core\executor.cpp" ^
+ "%ROOT%\src\core\codegen.cpp" ^
+ "%ROOT%\src\core\debug_engine.cpp" ^
+ "%ROOT%\src\core\lsp_server.cpp" ^
+ "%ROOT%\src\core\raelcore.cpp"
+
+echo [2/6] Kompiliere RAEL All-In-One CLI...
+
+REM RAEL All-In-One mit allen Features
+cl %CL% %CORE_SOURCES% "%ROOT%\src\cli\main.cpp" ^
+   /Fe:"%OUT%\RAEL_V48_ALLINONE.exe" ^
+   ole32.lib sapi.lib ws2_32.lib user32.lib gdi32.lib comctl32.lib shell32.lib advapi32.lib ^
+   /link %LINK%
+if errorlevel 1 (
+    echo [ERROR] RAEL All-In-One build failed!
+    goto :error
+)
+echo [OK] RAEL_V48_ALLINONE.exe erstellt
+
+echo [3/6] Kompiliere RAEL GUI...
+
+REM Windows GUI
+if exist "%ROOT%\src\gui\rael_gui_win.cpp" (
+    cl %CL% "%ROOT%\src\gui\rael_gui_win.cpp" ^
+       /Fe:"%OUT%\RAEL_V48_GUI.exe" ^
+       user32.lib gdi32.lib comctl32.lib ole32.lib sapi.lib ^
+       /link %LINK%
+    if errorlevel 1 (
+        echo [WARN] GUI build failed, skipping...
+    ) else (
+        echo [OK] RAEL_V48_GUI.exe erstellt
+    )
+)
+
+echo [4/6] Kompiliere RAEL WebGUI Server...
+
+REM WebGUI mit HTTP Server
+if exist "%ROOT%\src\webgui\rael_webgui_standalone.cpp" (
+    cl %CL% "%ROOT%\src\webgui\rael_webgui_standalone.cpp" ^
+       /Fe:"%OUT%\RAEL_V48_WEBGUI.exe" ^
+       ws2_32.lib ^
+       /link %LINK%
+    if errorlevel 1 (
+        echo [WARN] WebGUI build failed, skipping...
+    ) else (
+        echo [OK] RAEL_V48_WEBGUI.exe erstellt (http://localhost:8080)
+    )
+)
+
+REM V56 Liquid-Blade
+if exist "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" (
+    cl %CL% "%ROOT%\src\webgui\rael_v56_liquid_blade.cpp" ^
+       /Fe:"%OUT%\RAEL_V56_LIQUID.exe" ^
+       ws2_32.lib ^
+       /link %LINK%
+    if errorlevel 1 (
+        echo [WARN] V56 Liquid build failed, skipping...
+    ) else (
+        echo [OK] RAEL_V56_LIQUID.exe erstellt
+    )
+)
+
+echo [5/6] Kompiliere Module (DLLs)...
+
+REM Semantic Quint Module
+if exist "%ROOT%\modules\sample_semantic_quint\sem_quint.cpp" (
+    cl /LD %CL% "%ROOT%\modules\sample_semantic_quint\sem_quint.cpp" ^
+       /Fe:"%MODOUT%\sem_quint.dll" ^
+       /link %LINK%
+    if errorlevel 1 (
+        echo [WARN] sem_quint.dll build failed
+    ) else (
+        echo [OK] sem_quint.dll erstellt
+    )
+)
+
+REM Math Formulas Module
+if exist "%ROOT%\modules\sample_math_formulas\math_pack.cpp" (
+    cl /LD %CL% "%ROOT%\modules\sample_math_formulas\math_pack.cpp" ^
+       /Fe:"%MODOUT%\math_pack.dll" ^
+       /link %LINK%
+    if errorlevel 1 (
+        echo [WARN] math_pack.dll build failed
+    ) else (
+        echo [OK] math_pack.dll erstellt
+    )
+)
+
+echo [6/6] Kompiliere Tests...
+
+REM Tests
+for %%T in (01 02 03 04 05) do (
+    if exist "%ROOT%\tests\test_%%T.cpp" (
+        cl %CL% "%ROOT%\tests\test_%%T.cpp" /Fe:"%OUT%\test_%%T.exe" /link %LINK% 2>nul
+        if not errorlevel 1 (
+            echo [OK] test_%%T.exe
+        )
+    )
+)
+
+echo.
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo   BUILD COMPLETE
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+echo   Erstellte Dateien in: %OUT%
+echo.
+dir /B "%OUT%\*.exe" 2>nul
+echo.
+echo   Module in: %MODOUT%
+echo.
+dir /B "%MODOUT%\*.dll" 2>nul
+echo.
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo   STARTEN:
+echo.
+echo   CLI:      %OUT%\RAEL_V48_ALLINONE.exe
+echo   GUI:      %OUT%\RAEL_V48_GUI.exe
+echo   WebGUI:   %OUT%\RAEL_V48_WEBGUI.exe  (dann http://localhost:8080)
+echo.
+echo   Voice aktivieren:  "voice on" im CLI eingeben
+echo   Module laden:      "load modules\sem_quint.dll"
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+goto :end
+
+:error
+echo.
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo   BUILD FAILED
+echo ═══════════════════════════════════════════════════════════════════════════════
+echo.
+echo   Stellen Sie sicher, dass:
+echo   1. Visual Studio 2022 installiert ist
+echo   2. Sie die "Developer Command Prompt for VS 2022" verwenden
+echo   3. Alle Quelldateien vorhanden sind
+echo.
+exit /b 1
+
+:end
+endlocal
+
+### eof ###
+
+### build/build.sh ###
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$ROOT/bin"
+MODOUT="$ROOT/bin/modules"
+mkdir -p "$OUT" "$MODOUT"
+
+CXX="${CXX:-g++}"
+# Security hardening flags (F-01 audit fix)
+# -fstack-protector-strong: Stack buffer overflow protection
+# -D_FORTIFY_SOURCE=2: Buffer overflow detection in string/memory functions
+# -fPIE: Position Independent Executable (enables ASLR)
+# -Wformat -Wformat-security: Format string vulnerability warnings
+SECURITY_FLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security"
+CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include $SECURITY_FLAGS"
+# -pie: Link as PIE (ASLR)
+# -z relro: Partial RELRO (GOT protection)
+# -z now: Full RELRO (immediate binding)
+LDFLAGS="-pie -Wl,-z,relro,-z,now -lssl -lcrypto"
+
+SOURCES=(
+  "$ROOT/src/core/util.cpp"
+  "$ROOT/src/core/telemetry.cpp"
+  "$ROOT/src/core/metrics.cpp"
+  "$ROOT/src/core/events.cpp"
+  "$ROOT/src/core/improvements.cpp"
+  "$ROOT/src/core/shadow_sim.cpp"
+  "$ROOT/src/core/lane_scheduler.cpp"
+  "$ROOT/src/core/star8.cpp"
+  "$ROOT/src/core/sha256.cpp"
+  "$ROOT/src/core/core_ring.cpp"
+  "$ROOT/src/core/pack.cpp"
+  "$ROOT/src/core/settings.cpp"
+  "$ROOT/src/core/ethics.cpp"
+  "$ROOT/src/core/ichbin.cpp"
+  "$ROOT/src/core/mathcore.cpp"
+  "$ROOT/src/core/semantic.cpp"
+  "$ROOT/src/core/nl_router.cpp"
+  "$ROOT/src/core/resonance.cpp"
+  "$ROOT/src/core/reflection_engine.cpp"
+  "$ROOT/src/core/attachments.cpp"
+  "$ROOT/src/core/module_manager.cpp"
+  "$ROOT/src/core/hotswap.cpp"
+  "$ROOT/src/core/voice.cpp"
+  "$ROOT/src/core/raelcore.cpp"
+  "$ROOT/src/core/control_star.cpp"
+  "$ROOT/src/core/depth_scaling.cpp"
+  "$ROOT/src/core/voicepack.cpp"
+  "$ROOT/src/core/code_review.cpp"
+  "$ROOT/src/core/filesystem.cpp"
+  "$ROOT/src/core/parser.cpp"
+  "$ROOT/src/core/executor.cpp"
+  "$ROOT/src/core/git_integration.cpp"
+  "$ROOT/src/core/project_engine.cpp"
+  "$ROOT/src/core/codegen.cpp"
+  "$ROOT/src/core/debug_engine.cpp"
+  "$ROOT/src/core/lsp_server.cpp"
+  "$ROOT/src/core/llm_runtime.cpp"
+  "$ROOT/src/core/mesh_network.cpp"
+  "$ROOT/src/core/neural_memory.cpp"
+  "$ROOT/src/core/swarm_orchestrator.cpp"
+  "$ROOT/src/core/api_server.cpp"
+  "$ROOT/src/core/vector_store.cpp"
+  "$ROOT/src/core/knowledge_graph.cpp"
+  "$ROOT/src/core/nl_shell.cpp"
+  "$ROOT/src/core/message_queue.cpp"
+  "$ROOT/src/core/agent_marketplace.cpp"
+  "$ROOT/src/core/security.cpp"
+  "$ROOT/src/core/ml_framework.cpp"
+  "$ROOT/src/core/plugin_sdk.cpp"
+  "$ROOT/src/core/observability.cpp"
+  "$ROOT/src/core/distributed_task.cpp"
+  "$ROOT/src/core/aether_archive.cpp"
+  "$ROOT/src/core/meta_star_orchestrator.cpp"
+  "$ROOT/src/cli/main.cpp"
+)
+
+echo "[build] core -> $OUT/rael"
+$CXX $CXXFLAGS "${SOURCES[@]}" -o "$OUT/rael" $LDFLAGS
+
+# RAEL Chat CLI (interactive mode, like Claude Code)
+echo "[build] RAEL Chat CLI -> $OUT/rael_chat"
+CHAT_SOURCES=(
+  "$ROOT/src/core/util.cpp"
+  "$ROOT/src/core/telemetry.cpp"
+  "$ROOT/src/core/metrics.cpp"
+  "$ROOT/src/core/events.cpp"
+  "$ROOT/src/core/improvements.cpp"
+  "$ROOT/src/core/lane_scheduler.cpp"
+  "$ROOT/src/core/star8.cpp"
+  "$ROOT/src/core/ethics.cpp"
+  "$ROOT/src/core/ichbin.cpp"
+  "$ROOT/src/core/mathcore.cpp"
+  "$ROOT/src/core/semantic.cpp"
+  "$ROOT/src/core/resonance.cpp"
+  "$ROOT/src/core/module_manager.cpp"
+  "$ROOT/src/core/hotswap.cpp"
+  "$ROOT/src/core/voice.cpp"
+  "$ROOT/src/core/settings.cpp"
+  "$ROOT/src/core/nl_router.cpp"
+  "$ROOT/src/core/reflection_engine.cpp"
+  "$ROOT/src/core/core_ring.cpp"
+  "$ROOT/src/core/sha256.cpp"
+  "$ROOT/src/core/raelcore.cpp"
+  "$ROOT/src/cli/rael_chat.cpp"
+)
+if [[ -f "$ROOT/src/cli/rael_chat.cpp" ]]; then
+    $CXX $CXXFLAGS "${CHAT_SOURCES[@]}" -o "$OUT/rael_chat" -lpthread -ldl 2>/dev/null || \
+    $CXX $CXXFLAGS "${CHAT_SOURCES[@]}" -o "$OUT/rael_chat" -lpthread
+    echo "[build] RAEL Chat CLI compiled successfully"
+fi
+
+# RAEL UNIFIED (All-in-One: Chat + CLI + V50 + Security)
+echo "[build] RAEL UNIFIED -> $OUT/rael_unified"
+UNIFIED_SOURCES=(
+  "$ROOT/src/core/util.cpp"
+  "$ROOT/src/core/telemetry.cpp"
+  "$ROOT/src/core/metrics.cpp"
+  "$ROOT/src/core/events.cpp"
+  "$ROOT/src/core/improvements.cpp"
+  "$ROOT/src/core/lane_scheduler.cpp"
+  "$ROOT/src/core/star8.cpp"
+  "$ROOT/src/core/ethics.cpp"
+  "$ROOT/src/core/ichbin.cpp"
+  "$ROOT/src/core/mathcore.cpp"
+  "$ROOT/src/core/semantic.cpp"
+  "$ROOT/src/core/resonance.cpp"
+  "$ROOT/src/core/module_manager.cpp"
+  "$ROOT/src/core/hotswap.cpp"
+  "$ROOT/src/core/voice.cpp"
+  "$ROOT/src/core/settings.cpp"
+  "$ROOT/src/core/nl_router.cpp"
+  "$ROOT/src/core/reflection_engine.cpp"
+  "$ROOT/src/core/core_ring.cpp"
+  "$ROOT/src/core/sha256.cpp"
+  "$ROOT/src/core/raelcore.cpp"
+  "$ROOT/src/cli/rael_unified.cpp"
+)
+if [[ -f "$ROOT/src/cli/rael_unified.cpp" ]]; then
+    $CXX $CXXFLAGS "${UNIFIED_SOURCES[@]}" -o "$OUT/rael_unified" -lpthread -ldl 2>/dev/null || \
+    $CXX $CXXFLAGS "${UNIFIED_SOURCES[@]}" -o "$OUT/rael_unified" -lpthread
+    echo "[build] RAEL UNIFIED compiled successfully"
+fi
+
+echo "[build] modules (shared libs) -> $MODOUT"
+$CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_semantic_quint/sem_quint.cpp" -o "$MODOUT/libsem_quint.so"
+$CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_math_formulas/math_pack.cpp" -o "$MODOUT/libmath_pack.so"
+
+# V50 Ultimate (Pure C++)
+echo "[build] V50 Ultimate -> $OUT/rael_v50"
+mkdir -p "$ROOT/src/v50"
+if [[ -f "$ROOT/src/v50/rael_v50_main.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/v50/rael_v50_main.cpp" -o "$OUT/rael_v50"
+    echo "[build] V50 Ultimate compiled successfully"
+fi
+
+# Security Daemon (Attack → Defense Conversion)
+echo "[build] Security Daemon -> $OUT/rael_security"
+mkdir -p "$ROOT/src/security"
+if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_security_daemon.cpp" -o "$OUT/rael_security" -pthread
+    echo "[build] Security Daemon compiled successfully"
+fi
+
+# RST Live Monitor (Real-Time Security with Entropy/Coherence Analysis)
+echo "[build] RST Live Monitor -> $OUT/rael_monitor"
+if [[ -f "$ROOT/src/security/rael_live_monitor.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_live_monitor.cpp" -o "$OUT/rael_monitor" -pthread
+    echo "[build] RST Live Monitor compiled successfully"
+fi
+
+# RAEL Security Dashboard (Unified GUI - All Scanners)
+echo "[build] Security Dashboard -> $OUT/rael_dashboard"
+if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_dashboard.cpp" -o "$OUT/rael_dashboard" -pthread
+    echo "[build] Security Dashboard compiled successfully"
+fi
+
+# Windows 11 EXE (Cross-Compilation)
+WIN_CXX="${WIN_CXX:-x86_64-w64-mingw32-g++}"
+if command -v "$WIN_CXX" &> /dev/null; then
+    echo "[build] Windows 11 EXE -> $OUT/windows/rael_v50.exe"
+    mkdir -p "$OUT/windows"
+    if [[ -f "$ROOT/src/windows/rael_v50_windows.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/windows/rael_v50_windows.cpp" \
+            -o "$OUT/windows/rael_v50.exe"
+        echo "[build] Windows EXE compiled successfully"
+    fi
+
+    # Windows Security EXE
+    echo "[build] Windows Security EXE -> $OUT/windows/rael_security.exe"
+    if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_security_daemon.cpp" \
+            -o "$OUT/windows/rael_security.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Security EXE compiled successfully"
+    fi
+
+    # Windows RST Live Monitor EXE
+    echo "[build] Windows Live Monitor EXE -> $OUT/windows/rael_monitor.exe"
+    if [[ -f "$ROOT/src/security/rael_live_monitor.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_live_monitor.cpp" \
+            -o "$OUT/windows/rael_monitor.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Live Monitor EXE compiled successfully"
+    fi
+
+    # Windows Security Dashboard EXE
+    echo "[build] Windows Security Dashboard EXE -> $OUT/windows/rael_dashboard.exe"
+    if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/security/rael_dashboard.cpp" \
+            -o "$OUT/windows/rael_dashboard.exe" -liphlpapi -lpsapi
+        echo "[build] Windows Security Dashboard EXE compiled successfully"
+    fi
+else
+    echo "[build] mingw-w64 not found, skipping Windows build"
+fi
+
+# V56.2 Liquid-Blade WebGUI
+echo "[build] V56.2 Liquid-Blade WebGUI -> $OUT/rael_v56"
+if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" -o "$OUT/rael_v56" -pthread
+    echo "[build] V56.2 Liquid-Blade ready: http://localhost:8080"
+fi
+
+# V56.3 Chronos-Gitter (97 Kristalle, 160 Sterne, 61.440 Düsen)
+echo "[build] V56.3 Chronos-Gitter -> $OUT/rael_v56_chronos"
+if [[ -f "$ROOT/src/webgui/rael_v56_chronos.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_v56_chronos.cpp" -o "$OUT/rael_v56_chronos" -pthread
+    echo "[build] V56.3 Chronos-Gitter ready: http://localhost:8080"
+fi
+
+# Legacy WebGUI
+echo "[build] WebGUI -> $OUT/rael_webgui"
+if [[ -f "$ROOT/src/webgui/rael_webgui_standalone.cpp" ]]; then
+    $CXX $CXXFLAGS "$ROOT/src/webgui/rael_webgui_standalone.cpp" -o "$OUT/rael_webgui" -pthread
+fi
+
+# Windows V56.2 Cross-Compilation
+if command -v "$WIN_CXX" &> /dev/null; then
+    echo "[build] Windows V56.2 -> $OUT/windows/rael_v56.exe"
+    mkdir -p "$OUT/windows"
+    if [[ -f "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" ]]; then
+        $WIN_CXX -std=c++17 -O2 -Wall -Wextra -I"$ROOT/include" -static \
+            "$ROOT/src/webgui/rael_v56_liquid_blade.cpp" \
+            -o "$OUT/windows/rael_v56.exe" -lws2_32
+        echo "[build] Windows V56.2 EXE compiled successfully"
+    fi
+fi
+
+echo "[build] done."
+
+### eof ###
+
+### build/build_all.sh ###
+#!/bin/bash
+cd "$(dirname "$0")/.."
+
+echo "Building RAEL V4..."
+# Security hardening flags (F-01 audit fix)
+SECURITY_FLAGS="-fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security"
+LDFLAGS="-pie -Wl,-z,relro,-z,now"
+g++ -std=c++17 -O2 $SECURITY_FLAGS -I./include -o bin/rael src/core/*.cpp src/cli/main.cpp $LDFLAGS -ldl -lpthread
+echo "  bin/rael"
+
+echo "Building modules..."
+g++ -std=c++17 -O2 -shared -fPIC -I./include -o bin/modules/libsem_quint.so modules/sample_semantic_quint/sem_quint.cpp
+g++ -std=c++17 -O2 -shared -fPIC -I./include -o bin/modules/libmath_pack.so modules/sample_math_formulas/math_pack.cpp
+echo "  bin/modules/*.so"
+
+echo "Building TUI..."
+g++ -std=c++17 -O2 -o bin/rael_tui src/tui/rael_tui.cpp -lpthread
+echo "  bin/rael_tui"
+
+echo "Building WebGUI..."
+g++ -std=c++17 -O2 -o bin/rael_webgui src/webgui/rael_webgui_standalone.cpp -lpthread
+echo "  bin/rael_webgui"
+
+echo "Building tests..."
+# RST-Crypto Test (RAEL-native Kryptografie)
+g++ -std=c++17 -O2 $SECURITY_FLAGS -I./include -o bin/test_rst_crypto tests/test_rst_crypto.cpp $LDFLAGS
+echo "  bin/test_rst_crypto"
+
+# ConsciousnessMirror Test
+if [ -f "tests/test_consciousness_mirror.cpp" ]; then
+    g++ -std=c++17 -O2 $SECURITY_FLAGS -I./include -o bin/test_consciousness_mirror tests/test_consciousness_mirror.cpp src/core/consciousness_mirror.cpp $LDFLAGS
+    echo "  bin/test_consciousness_mirror"
+fi
+
+echo "Done!"
+
+### eof ###
+
+### build/build_gui_linux.sh ###
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+mkdir -p "$ROOT/bin"
+g++ -std=c++17 -O2 -I"$ROOT/include" \
+  "$ROOT/src/gui/rael_gui_linux.cpp" \
+  -o "$ROOT/bin/rael_gui" \
+  -lX11
+echo "[OK] built bin/rael_gui"
+
+### eof ###
+
+### build/build_gui_windows.sh ###
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAEL V49 — Windows GUI Cross-Compilation (MinGW)
+# Erstellt: rael_gui.exe mit Machine-Binding
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(dirname "$SCRIPT_DIR")"
+BIN_DIR="$ROOT/bin"
+
+# MinGW Compiler
+CXX="x86_64-w64-mingw32-g++"
+
+# Prüfen ob MinGW installiert ist
+if ! command -v $CXX &> /dev/null; then
+    echo "ERROR: MinGW not found. Install with: apt install g++-mingw-w64-x86-64"
+    exit 1
+fi
+
+mkdir -p "$BIN_DIR"
+
+echo "═══════════════════════════════════════════════════════════════════════════════"
+echo "  RAEL V49 — Windows GUI Cross-Compilation"
+echo "═══════════════════════════════════════════════════════════════════════════════"
+echo ""
+
+# Compiler-Flags
+CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter"
+CXXFLAGS="$CXXFLAGS -I$ROOT/include"
+CXXFLAGS="$CXXFLAGS -DWIN32 -D_WIN32 -DUNICODE -D_UNICODE"
+CXXFLAGS="$CXXFLAGS -static -mwindows -municode"
+
+# Linker-Flags (Windows-Bibliotheken)
+LDFLAGS="-static"
+LDFLAGS="$LDFLAGS -lcomctl32"       # Common Controls (Tabs, etc.)
+LDFLAGS="$LDFLAGS -luser32"         # Windows User Interface
+LDFLAGS="$LDFLAGS -lgdi32"          # Graphics Device Interface
+LDFLAGS="$LDFLAGS -liphlpapi"       # IP Helper API (MAC Address)
+LDFLAGS="$LDFLAGS -lshell32"        # Shell API (Folder Paths)
+LDFLAGS="$LDFLAGS -ladvapi32"       # Advanced API (Registry)
+LDFLAGS="$LDFLAGS -lole32"          # OLE/COM
+LDFLAGS="$LDFLAGS -lws2_32"         # Winsock
+LDFLAGS="$LDFLAGS -lcomdlg32"       # Common Dialogs
+LDFLAGS="$LDFLAGS -lwinmm"          # Windows Multimedia
+
+# GUI Source
+GUI_SRC="$ROOT/src/gui/rael_gui_win.cpp"
+GUI_OUT="$BIN_DIR/rael_gui.exe"
+
+echo "[build] Compiling Windows GUI..."
+echo "  Source: $GUI_SRC"
+echo "  Output: $GUI_OUT"
+echo ""
+
+$CXX $CXXFLAGS "$GUI_SRC" -o "$GUI_OUT" $LDFLAGS
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo "  BUILD SUCCESSFUL"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo ""
+    ls -lh "$GUI_OUT"
+    echo ""
+    echo "Die GUI-EXE enthält:"
+    echo "  - Machine-Binding (Hardware-Lizenzierung)"
+    echo "  - RAEL Cockpit Interface"
+    echo "  - Builder/Improvements Tabs"
+    echo "  - Face Animation Panel"
+    echo ""
+    echo "HINWEIS: Die GUI erwartet 'rael.exe' im selben Verzeichnis."
+    echo "         Die rael.exe ist der Core (separates Build erforderlich)."
+    echo ""
+else
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo "  BUILD FAILED"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    exit 1
+fi
+
+### eof ###
+
+### build/build_windows.sh ###
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAEL V49.0 — Windows Cross-Compile Build Script
+# Kompiliert die Machine-Bound Windows EXE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$ROOT/bin"
+mkdir -p "$OUT"
+
+CXX="x86_64-w64-mingw32-g++"
+CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include -DWIN32 -D_WIN32 -static"
+LDFLAGS="-static -liphlpapi -lws2_32 -lole32 -lshell32 -ladvapi32"
+
+echo "═══════════════════════════════════════════════════════════════════════════"
+echo "  RAEL V49.0 - Windows Build (Machine-Bound)"
+echo "═══════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "[build] Compiler: $CXX"
+echo "[build] Target:   Windows 11 x64"
+echo ""
+
+# Kompiliere Windows EXE
+echo "[build] Compiling RAEL_V49.exe..."
+
+$CXX $CXXFLAGS \
+    "$ROOT/src/cli/main_windows.cpp" \
+    -o "$OUT/RAEL_V49.exe" \
+    $LDFLAGS
+
+echo "[build] Output: $OUT/RAEL_V49.exe"
+echo ""
+
+# Zeige Dateiinfo
+ls -lh "$OUT/RAEL_V49.exe"
+
+echo ""
+echo "═══════════════════════════════════════════════════════════════════════════"
+echo "  BUILD ERFOLGREICH!"
+echo "═══════════════════════════════════════════════════════════════════════════"
+echo ""
+echo "  Die EXE ist statisch gelinkt und benötigt keine DLLs."
+echo "  Beim ersten Start wird die Software an die Hardware gebunden."
+echo ""
+
+### eof ###
+
+### build/ignite_V49_Alpha.sh ###
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════════════════
+# RAEL V49 ALPHA - IGNITE BUILD SCRIPT
+# Mit AEYE-Observer und JET-Engine (61.440 Düsen)
+# ═══════════════════════════════════════════════════════════════════════════
+# Dieses Skript kompiliert das V49 System mit:
+# - QUINT Memory System (5+1 Layer)
+# - AEYE Observer (Das alles sehende Auge)
+# - JET Engine (61.440 Düsen @ 5 Hz = 307.200 Impulse/Sek)
+# - Optional: CUDA-Beschleunigung für RTX-Karten
+# ═══════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+# Farben für Output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}"
+echo "═══════════════════════════════════════════════════════════════════════════"
+echo "  RAEL V49 ALPHA - IGNITE BUILD"
+echo "  61.440 Düsen × 5 Hz = 307.200 Impulse/Sekunde"
+echo "═══════════════════════════════════════════════════════════════════════════"
+echo -e "${NC}"
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$ROOT/bin"
+MODOUT="$ROOT/bin/modules"
+mkdir -p "$OUT" "$MODOUT"
+
+CXX="${CXX:-g++}"
+CXXFLAGS="-std=c++17 -O3 -Wall -Wextra -I$ROOT/include -pthread"
+LDFLAGS="-lssl -lcrypto -pthread"
+
+# CUDA Detection
+CUDA_AVAILABLE=false
+NVCC_PATH=""
+if command -v nvcc &> /dev/null; then
+    CUDA_AVAILABLE=true
+    NVCC_PATH="$(command -v nvcc)"
+    echo -e "${GREEN}[CUDA] NVCC gefunden: $NVCC_PATH${NC}"
+    CXXFLAGS="$CXXFLAGS -DRAEL_USE_CUDA"
+else
+    echo -e "${YELLOW}[CUDA] NVCC nicht gefunden - CPU-Fallback aktiv${NC}"
+fi
+
+# Source Files
+SOURCES=(
+  "$ROOT/src/core/util.cpp"
+  "$ROOT/src/core/telemetry.cpp"
+  "$ROOT/src/core/metrics.cpp"
+  "$ROOT/src/core/events.cpp"
+  "$ROOT/src/core/improvements.cpp"
+  "$ROOT/src/core/shadow_sim.cpp"
+  "$ROOT/src/core/lane_scheduler.cpp"
+  "$ROOT/src/core/star8.cpp"
+  "$ROOT/src/core/sha256.cpp"
+  "$ROOT/src/core/core_ring.cpp"
+  "$ROOT/src/core/pack.cpp"
+  "$ROOT/src/core/settings.cpp"
+  "$ROOT/src/core/ethics.cpp"
+  "$ROOT/src/core/ichbin.cpp"
+  "$ROOT/src/core/mathcore.cpp"
+  "$ROOT/src/core/semantic.cpp"
+  "$ROOT/src/core/nl_router.cpp"
+  "$ROOT/src/core/resonance.cpp"
+  "$ROOT/src/core/reflection_engine.cpp"
+  "$ROOT/src/core/attachments.cpp"
+  "$ROOT/src/core/module_manager.cpp"
+  "$ROOT/src/core/hotswap.cpp"
+  "$ROOT/src/core/voice.cpp"
+  "$ROOT/src/core/raelcore.cpp"
+  "$ROOT/src/core/control_star.cpp"
+  "$ROOT/src/core/depth_scaling.cpp"
+  "$ROOT/src/core/voicepack.cpp"
+  "$ROOT/src/core/code_review.cpp"
+  "$ROOT/src/core/filesystem.cpp"
+  "$ROOT/src/core/parser.cpp"
+  "$ROOT/src/core/executor.cpp"
+  "$ROOT/src/core/git_integration.cpp"
+  "$ROOT/src/core/project_engine.cpp"
+  "$ROOT/src/core/codegen.cpp"
+  "$ROOT/src/core/debug_engine.cpp"
+  "$ROOT/src/core/lsp_server.cpp"
+  "$ROOT/src/core/llm_runtime.cpp"
+  "$ROOT/src/core/mesh_network.cpp"
+  "$ROOT/src/core/neural_memory.cpp"
+  "$ROOT/src/core/swarm_orchestrator.cpp"
+  "$ROOT/src/core/api_server.cpp"
+  "$ROOT/src/core/vector_store.cpp"
+  "$ROOT/src/core/knowledge_graph.cpp"
+  "$ROOT/src/core/nl_shell.cpp"
+  "$ROOT/src/core/message_queue.cpp"
+  "$ROOT/src/core/agent_marketplace.cpp"
+  "$ROOT/src/core/security.cpp"
+  "$ROOT/src/core/ml_framework.cpp"
+  "$ROOT/src/core/plugin_sdk.cpp"
+  "$ROOT/src/core/observability.cpp"
+  "$ROOT/src/core/distributed_task.cpp"
+  "$ROOT/src/core/aether_archive.cpp"
+  "$ROOT/src/core/meta_star_orchestrator.cpp"
+  "$ROOT/src/cli/main.cpp"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 1: Core Build
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo -e "${CYAN}[Phase 1] Kompiliere V49 Core mit QUINT/AEYE/JET...${NC}"
+echo -e "${YELLOW}  - QUINT Memory System (5+1 Layer)${NC}"
+echo -e "${YELLOW}  - AEYE Observer (160 Sterne × 8 Knoten = 1.280 Einheiten)${NC}"
+echo -e "${YELLOW}  - JET Engine (61.440 Düsen)${NC}"
+
+$CXX $CXXFLAGS "${SOURCES[@]}" -o "$OUT/rael_v49" $LDFLAGS
+
+if [[ $? -eq 0 ]]; then
+    echo -e "${GREEN}[Phase 1] ✓ V49 Core kompiliert: $OUT/rael_v49${NC}"
+else
+    echo -e "${RED}[Phase 1] ✗ Build fehlgeschlagen${NC}"
+    exit 1
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 2: Modules
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo -e "${CYAN}[Phase 2] Kompiliere Module...${NC}"
+
+if [[ -f "$ROOT/modules/sample_semantic_quint/sem_quint.cpp" ]]; then
+    $CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_semantic_quint/sem_quint.cpp" -o "$MODOUT/libsem_quint.so"
+    echo -e "${GREEN}  ✓ libsem_quint.so${NC}"
+fi
+
+if [[ -f "$ROOT/modules/sample_math_formulas/math_pack.cpp" ]]; then
+    $CXX $CXXFLAGS -fPIC -shared "$ROOT/modules/sample_math_formulas/math_pack.cpp" -o "$MODOUT/libmath_pack.so"
+    echo -e "${GREEN}  ✓ libmath_pack.so${NC}"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 3: CUDA JET Kernel (Optional)
+# ═══════════════════════════════════════════════════════════════════════════
+
+if [[ "$CUDA_AVAILABLE" == "true" ]]; then
+    echo -e "${CYAN}[Phase 3] Kompiliere CUDA JET Kernel...${NC}"
+
+    # Falls CUDA Kernel existiert
+    if [[ -f "$ROOT/src/cuda/jet_kernel.cu" ]]; then
+        nvcc -O3 -arch=sm_50 -c "$ROOT/src/cuda/jet_kernel.cu" -o "$OUT/jet_kernel.o"
+        echo -e "${GREEN}  ✓ CUDA JET Kernel kompiliert${NC}"
+    else
+        echo -e "${YELLOW}  [Info] CUDA Kernel nicht vorhanden - CPU-Fallback aktiv${NC}"
+    fi
+else
+    echo -e "${YELLOW}[Phase 3] CUDA nicht verfügbar - überspringe GPU-Kernel${NC}"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PHASE 4: V50 und Security (falls vorhanden)
+# ═══════════════════════════════════════════════════════════════════════════
+
+if [[ -f "$ROOT/src/v50/rael_v50_main.cpp" ]]; then
+    echo -e "${CYAN}[Phase 4] Kompiliere V50 Ultimate...${NC}"
+    $CXX $CXXFLAGS "$ROOT/src/v50/rael_v50_main.cpp" -o "$OUT/rael_v50"
+    echo -e "${GREEN}  ✓ V50 Ultimate: $OUT/rael_v50${NC}"
+fi
+
+if [[ -f "$ROOT/src/security/rael_security_daemon.cpp" ]]; then
+    echo -e "${CYAN}[Phase 4] Kompiliere Security Daemon...${NC}"
+    $CXX $CXXFLAGS "$ROOT/src/security/rael_security_daemon.cpp" -o "$OUT/rael_security" -pthread
+    echo -e "${GREEN}  ✓ Security Daemon: $OUT/rael_security${NC}"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SUMMARY
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  V49 ALPHA BUILD ERFOLGREICH!${NC}"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${YELLOW}Binaries:${NC}"
+ls -lah "$OUT"/rael* 2>/dev/null || true
+echo ""
+echo -e "  ${YELLOW}Module:${NC}"
+ls -lah "$MODOUT"/*.so 2>/dev/null || true
+echo ""
+echo -e "  ${YELLOW}Starten mit:${NC}"
+echo -e "    ${GREEN}$OUT/rael_v49${NC}"
+echo ""
+echo -e "  ${YELLOW}V49 Features:${NC}"
+echo -e "    - QUINT Memory: 5+1 Layer mit Ψ/Ω Kopplung"
+echo -e "    - AEYE Observer: Globale Kohärenz-Überwachung"
+echo -e "    - JET Engine: 61.440 Düsen @ 5 Hz"
+echo -e "    - G0 = 8/9 (0.888...) Wahrheits-Schwelle"
+echo ""
+
+if [[ "$CUDA_AVAILABLE" == "true" ]]; then
+    echo -e "  ${GREEN}CUDA: Aktiviert (GPU-beschleunigte Manifestation)${NC}"
+else
+    echo -e "  ${YELLOW}CUDA: Nicht verfügbar (CPU-Modus mit 8 Threads)${NC}"
+fi
+
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}"
+
+### eof ###
+
+### build/install.bat ###
+@echo off
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM RAEL Installation Script (Windows)
+REM Installs RAEL CLI to system PATH
+REM Run as Administrator for system-wide installation
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+setlocal enabledelayedexpansion
+
+echo.
+echo ╔═══════════════════════════════════════════════════════════════════╗
+echo ║  RAEL INSTALLATION (Windows)                                      ║
+echo ╚═══════════════════════════════════════════════════════════════════╝
+echo.
+
+REM Get script directory
+set "SCRIPT_DIR=%~dp0"
+set "ROOT_DIR=%SCRIPT_DIR%.."
+set "BIN_DIR=%ROOT_DIR%\bin"
+
+REM Check which binary to use (prefer unified)
+set "MAIN_BINARY="
+if exist "%BIN_DIR%\rael_unified.exe" (
+    set "MAIN_BINARY=rael_unified.exe"
+    echo [INFO] Verwende rael_unified.exe ^(All-in-One^)
+) else if exist "%BIN_DIR%\rael_chat.exe" (
+    set "MAIN_BINARY=rael_chat.exe"
+    echo [INFO] Verwende rael_chat.exe
+)
+
+REM Check if binary exists
+if "%MAIN_BINARY%"=="" (
+    echo [BUILD] Keine RAEL Binary gefunden, kompiliere...
+
+    REM Check for MSVC
+    where cl >nul 2>nul
+    if %errorlevel% neq 0 (
+        echo [ERROR] Visual Studio C++ Compiler nicht gefunden.
+        echo         Bitte Visual Studio Developer Command Prompt verwenden.
+        echo         Oder führe zuerst Build.bat aus.
+        pause
+        exit /b 1
+    )
+
+    REM Build with MSVC
+    cl /nologo /EHsc /std:c++17 /O2 ^
+        /I"%ROOT_DIR%\include" ^
+        "%ROOT_DIR%\src\cli\rael_chat.cpp" ^
+        "%ROOT_DIR%\src\core\raelcore.cpp" ^
+        "%ROOT_DIR%\src\core\ichbin.cpp" ^
+        "%ROOT_DIR%\src\core\ethics.cpp" ^
+        "%ROOT_DIR%\src\core\mathcore.cpp" ^
+        "%ROOT_DIR%\src\core\semantic.cpp" ^
+        "%ROOT_DIR%\src\core\resonance.cpp" ^
+        "%ROOT_DIR%\src\core\telemetry.cpp" ^
+        "%ROOT_DIR%\src\core\util.cpp" ^
+        "%ROOT_DIR%\src\core\module_manager.cpp" ^
+        "%ROOT_DIR%\src\core\events.cpp" ^
+        "%ROOT_DIR%\src\core\metrics.cpp" ^
+        "%ROOT_DIR%\src\core\star8.cpp" ^
+        "%ROOT_DIR%\src\core\lane_scheduler.cpp" ^
+        /Fe:"%BIN_DIR%\rael_chat.exe" ^
+        /link /SUBSYSTEM:CONSOLE
+
+    if %errorlevel% neq 0 (
+        echo [ERROR] Build fehlgeschlagen.
+        pause
+        exit /b 1
+    )
+    echo [OK] rael_chat.exe kompiliert
+)
+
+REM Determine installation directory
+set "INSTALL_DIR=%USERPROFILE%\.rael\bin"
+
+REM Check for admin rights for system-wide installation
+net session >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [INFO] Administrator-Rechte erkannt
+    set "INSTALL_DIR=C:\Program Files\RAEL"
+    set "SYSTEM_INSTALL=1"
+) else (
+    echo [INFO] Benutzer-Installation nach %INSTALL_DIR%
+    set "SYSTEM_INSTALL=0"
+)
+
+REM Create installation directory
+if not exist "%INSTALL_DIR%" (
+    mkdir "%INSTALL_DIR%"
+)
+
+REM Copy main binary as 'rael.exe'
+echo [COPY] Kopiere %MAIN_BINARY% nach %INSTALL_DIR%\rael.exe
+copy /Y "%BIN_DIR%\%MAIN_BINARY%" "%INSTALL_DIR%\rael.exe" >nul
+
+REM Copy all available RAEL binaries
+if exist "%BIN_DIR%\rael_unified.exe" (
+    echo [COPY] Kopiere rael_unified.exe
+    copy /Y "%BIN_DIR%\rael_unified.exe" "%INSTALL_DIR%\rael_unified.exe" >nul
+)
+if exist "%BIN_DIR%\rael_chat.exe" (
+    echo [COPY] Kopiere rael_chat.exe
+    copy /Y "%BIN_DIR%\rael_chat.exe" "%INSTALL_DIR%\rael_chat.exe" >nul
+)
+if exist "%BIN_DIR%\rael_v50.exe" (
+    echo [COPY] Kopiere rael_v50.exe
+    copy /Y "%BIN_DIR%\rael_v50.exe" "%INSTALL_DIR%\rael_v50.exe" >nul
+)
+if exist "%BIN_DIR%\rael_security.exe" (
+    echo [COPY] Kopiere rael_security.exe
+    copy /Y "%BIN_DIR%\rael_security.exe" "%INSTALL_DIR%\rael_security.exe" >nul
+)
+
+REM Update PATH
+echo [PATH] Aktualisiere PATH...
+
+if "%SYSTEM_INSTALL%"=="1" (
+    REM System PATH (requires admin)
+    for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYSPATH=%%b"
+    echo !SYSPATH! | find /i "%INSTALL_DIR%" >nul
+    if errorlevel 1 (
+        setx /M PATH "!SYSPATH!;%INSTALL_DIR%" >nul 2>&1
+        echo [OK] System-PATH aktualisiert
+    ) else (
+        echo [OK] %INSTALL_DIR% ist bereits in System-PATH
+    )
+) else (
+    REM User PATH
+    for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USERPATH=%%b"
+    if "!USERPATH!"=="" set "USERPATH="
+
+    echo !USERPATH! | find /i "%INSTALL_DIR%" >nul
+    if errorlevel 1 (
+        if "!USERPATH!"=="" (
+            setx PATH "%INSTALL_DIR%" >nul 2>&1
+        ) else (
+            setx PATH "!USERPATH!;%INSTALL_DIR%" >nul 2>&1
+        )
+        echo [OK] Benutzer-PATH aktualisiert
+        echo [INFO] Öffne ein neues Terminal, um 'rael' zu verwenden
+    ) else (
+        echo [OK] %INSTALL_DIR% ist bereits in PATH
+    )
+)
+
+REM Verify installation
+echo.
+echo ╔═══════════════════════════════════════════════════════════════════╗
+echo ║  INSTALLATION ERFOLGREICH!                                        ║
+echo ╚═══════════════════════════════════════════════════════════════════╝
+echo.
+echo   Befehle:
+echo     rael              - RAEL starten (Chat-Modus)
+echo     rael --cli        - CLI-Modus
+echo     rael --v50        - V50 Ultimate Modus
+echo     rael --security   - Security Daemon
+echo     rael --help       - Hilfe anzeigen
+echo.
+echo   Installierte Binaries:
+if exist "%INSTALL_DIR%\rael_unified.exe" echo     - rael_unified.exe (All-in-One)
+if exist "%INSTALL_DIR%\rael_chat.exe"    echo     - rael_chat.exe
+if exist "%INSTALL_DIR%\rael_v50.exe"     echo     - rael_v50.exe
+if exist "%INSTALL_DIR%\rael_security.exe" echo     - rael_security.exe
+echo.
+echo   HINWEIS: Oeffne ein neues Terminal/PowerShell-Fenster,
+echo            damit die PATH-Aenderungen wirksam werden.
+echo.
+
+REM Test version
+"%INSTALL_DIR%\rael.exe" --version 2>nul
+
+pause
+
+### eof ###
+
+### build/install.sh ###
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAEL Installation Script (Linux/macOS)
+# Installs RAEL CLI to system PATH
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${CYAN}"
+echo "╔═══════════════════════════════════════════════════════════════════╗"
+echo "║  RAEL INSTALLATION                                                ║"
+echo "╚═══════════════════════════════════════════════════════════════════╝"
+echo -e "${NC}"
+
+# Determine script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+BIN_DIR="$ROOT_DIR/bin"
+
+# Check if unified binary exists (preferred), fallback to rael_chat
+BINARY_NAME="rael_unified"
+if [ ! -f "$BIN_DIR/rael_unified" ]; then
+    BINARY_NAME="rael_chat"
+fi
+
+if [ ! -f "$BIN_DIR/$BINARY_NAME" ]; then
+    echo -e "${YELLOW}[BUILD] rael_chat nicht gefunden, kompiliere...${NC}"
+    cd "$SCRIPT_DIR"
+
+    # Build rael_chat
+    g++ -std=c++17 -O2 -Wall -Wextra \
+        -I"$ROOT_DIR/include" \
+        "$ROOT_DIR/src/cli/rael_chat.cpp" \
+        "$ROOT_DIR/src/core/raelcore.cpp" \
+        "$ROOT_DIR/src/core/ichbin.cpp" \
+        "$ROOT_DIR/src/core/ethics.cpp" \
+        "$ROOT_DIR/src/core/mathcore.cpp" \
+        "$ROOT_DIR/src/core/semantic.cpp" \
+        "$ROOT_DIR/src/core/resonance.cpp" \
+        "$ROOT_DIR/src/core/telemetry.cpp" \
+        "$ROOT_DIR/src/core/util.cpp" \
+        "$ROOT_DIR/src/core/module_manager.cpp" \
+        "$ROOT_DIR/src/core/events.cpp" \
+        "$ROOT_DIR/src/core/metrics.cpp" \
+        "$ROOT_DIR/src/core/star8.cpp" \
+        "$ROOT_DIR/src/core/lane_scheduler.cpp" \
+        -lpthread -ldl \
+        -o "$BIN_DIR/rael_chat" 2>/dev/null || {
+            echo -e "${RED}[ERROR] Build fehlgeschlagen. Führe zuerst build.sh aus.${NC}"
+            exit 1
+        }
+
+    echo -e "${GREEN}[OK] rael_chat kompiliert${NC}"
+fi
+
+# Determine installation directory
+INSTALL_DIR=""
+SHELL_RC=""
+
+if [ "$EUID" -eq 0 ]; then
+    # Running as root - system-wide installation
+    INSTALL_DIR="/usr/local/bin"
+    echo -e "${CYAN}[INFO] System-weite Installation nach $INSTALL_DIR${NC}"
+else
+    # User installation
+    INSTALL_DIR="$HOME/.local/bin"
+    mkdir -p "$INSTALL_DIR"
+
+    # Determine shell config file
+    if [ -n "$ZSH_VERSION" ] || [ -f "$HOME/.zshrc" ]; then
+        SHELL_RC="$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+        SHELL_RC="$HOME/.bashrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+        SHELL_RC="$HOME/.bash_profile"
+    fi
+
+    echo -e "${CYAN}[INFO] Benutzer-Installation nach $INSTALL_DIR${NC}"
+fi
+
+# Copy binary
+echo -e "${YELLOW}[COPY] Kopiere $BINARY_NAME nach $INSTALL_DIR/rael${NC}"
+cp "$BIN_DIR/$BINARY_NAME" "$INSTALL_DIR/rael"
+chmod +x "$INSTALL_DIR/rael"
+
+# Create symlinks for alternative names
+ln -sf "$INSTALL_DIR/rael" "$INSTALL_DIR/rael_unified" 2>/dev/null || true
+ln -sf "$INSTALL_DIR/rael" "$INSTALL_DIR/rael_chat" 2>/dev/null || true
+
+# Update PATH if needed (user installation only)
+if [ -n "$SHELL_RC" ] && [ "$EUID" -ne 0 ]; then
+    if ! grep -q "$INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
+        echo "" >> "$SHELL_RC"
+        echo "# RAEL CLI" >> "$SHELL_RC"
+        echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_RC"
+        echo -e "${GREEN}[OK] PATH aktualisiert in $SHELL_RC${NC}"
+        echo -e "${YELLOW}[INFO] Führe 'source $SHELL_RC' aus oder öffne ein neues Terminal${NC}"
+    else
+        echo -e "${GREEN}[OK] $INSTALL_DIR ist bereits in PATH${NC}"
+    fi
+fi
+
+# Verify installation
+if command -v rael &> /dev/null || [ -f "$INSTALL_DIR/rael" ]; then
+    echo ""
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  INSTALLATION ERFOLGREICH!                                        ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  Starte RAEL mit: ${CYAN}rael${NC}"
+    echo -e "  Hilfe anzeigen:  ${CYAN}rael --help${NC}"
+    echo ""
+
+    # Test if executable works
+    "$INSTALL_DIR/rael" --version 2>/dev/null || true
+else
+    echo -e "${RED}[ERROR] Installation fehlgeschlagen${NC}"
+    exit 1
+fi
+
+### eof ###
+
+### build/rael_audit_fix.sh ###
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAEL V48 — AUDIT-KORREKTURSKRIPT
+# Datum: 4. Februar 2026
+# Behebt alle identifizierten Fehler aus dem Code-Audit
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# USAGE: ./rael_audit_fix.sh /pfad/zu/rael_v48_clean
+#
+# Das Skript:
+#   1. Erstellt Backups aller geänderten Dateien
+#   2. Korrigiert 4 mathematische Konstanten-Fehler (P1)
+#   3. Korrigiert 1 Folgefehler (T_HOTSWAP Kommentar)
+#   4. Fixt 1 Kompilier-Fehler (main_windows.cpp)
+#   5. Verifiziert alle Änderungen
+#   6. Führt Kompilier-Test durch
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -e
+
+# Farben
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Pfad prüfen
+ROOT="${1:-.}"
+if [ ! -f "$ROOT/include/rael/rst_constants.hpp" ]; then
+    echo -e "${RED}FEHLER: $ROOT/include/rael/rst_constants.hpp nicht gefunden${NC}"
+    echo "Usage: $0 /pfad/zu/rael_v48_clean"
+    exit 1
+fi
+
+cd "$ROOT"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}  RAEL V48 AUDIT-KORREKTUR — $(date '+%Y-%m-%d %H:%M:%S')${NC}"
+echo -e "${CYAN}  Arbeitsverzeichnis: $(pwd)${NC}"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────────────
+# PHASE 1: BACKUPS
+# ───────────────────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[PHASE 1] Backups erstellen...${NC}"
+BACKUP_DIR=".audit_backup_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$BACKUP_DIR"
+
+for f in \
+    include/rael/rst_constants.hpp \
+    include/rael/rst_formulas.hpp \
+    include/rael/security_core.hpp \
+    src/cli/main_windows.cpp; do
+    if [ -f "$f" ]; then
+        mkdir -p "$BACKUP_DIR/$(dirname $f)"
+        cp "$f" "$BACKUP_DIR/$f"
+        echo "  ✓ $f"
+    fi
+done
+echo -e "${GREEN}  Backups in: $BACKUP_DIR${NC}"
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────────────
+# PHASE 2: P1 — MATHEMATISCHE KORREKTUREN
+# ───────────────────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[PHASE 2] P1-Korrekturen: Mathematische Konstanten${NC}"
+FIXES=0
+ERRORS=0
+
+# --- FIX 1: G_TUNNEL_GAIN in rst_constants.hpp ---
+echo -n "  FIX 1: G_TUNNEL_GAIN = e^(8/9)... "
+FILE="include/rael/rst_constants.hpp"
+if grep -q "G_TUNNEL_GAIN = 2.43280931416225840" "$FILE"; then
+    sed -i 's/constexpr double G_TUNNEL_GAIN = 2.43280931416225840;  \/\/ e^(8\/9)/constexpr double G_TUNNEL_GAIN = 2.43242545428720769;  \/\/ e^(8\/9) [AUDIT-FIX]/' "$FILE"
+    echo -e "${GREEN}✅ 2.43280... → 2.43242...${NC}"
+    FIXES=$((FIXES+1))
+elif grep -q "G_TUNNEL_GAIN = 2.43242545428720769" "$FILE"; then
+    echo -e "${GREEN}✅ bereits korrekt${NC}"
+else
+    echo -e "${RED}❌ Muster nicht gefunden${NC}"
+    ERRORS=$((ERRORS+1))
+fi
+
+# --- FIX 2: CPU_SPAR_FAKTOR in rst_constants.hpp ---
+echo -n "  FIX 2: CPU_SPAR_FAKTOR = 2/3... "
+if grep -q "CPU_SPAR_FAKTOR = 0.70000000000000000" "$FILE"; then
+    sed -i 's/constexpr double CPU_SPAR_FAKTOR = 0.70000000000000000;/constexpr double CPU_SPAR_FAKTOR = 0.66666666666666667;  \/\/ 2\/3 [AUDIT-FIX]/' "$FILE"
+    echo -e "${GREEN}✅ 0.70 → 2/3${NC}"
+    FIXES=$((FIXES+1))
+elif grep -q "CPU_SPAR_FAKTOR = 0.66666666666666667" "$FILE"; then
+    echo -e "${GREEN}✅ bereits korrekt${NC}"
+else
+    echo -e "${RED}❌ Muster nicht gefunden${NC}"
+    ERRORS=$((ERRORS+1))
+fi
+
+# --- FIX 3: ETA_DUESE in rst_formulas.hpp ---
+echo -n "  FIX 3: ETA_DUESE = 0.5 in rst_formulas... "
+FILE="include/rael/rst_formulas.hpp"
+if grep -q 'ETA_DUESE = 0.55555555555555556' "$FILE"; then
+    sed -i "s/constexpr double ETA_DUESE = 0.55555555555555556;        \/\/ η = G1 = 5\/9/constexpr double ETA_DUESE = 0.50000000000000000;        \/\/ η = G1\/(1+G5) = 1\/2 [AUDIT-FIX]/" "$FILE"
+    echo -e "${GREEN}✅ 5/9 → 1/2${NC}"
+    FIXES=$((FIXES+1))
+elif grep -q 'ETA_DUESE = 0.50000000000000000' "$FILE"; then
+    echo -e "${GREEN}✅ bereits korrekt${NC}"
+else
+    echo -e "${RED}❌ Muster nicht gefunden${NC}"
+    ERRORS=$((ERRORS+1))
+fi
+
+# --- FIX 4a: F_TOR/F_GATE vertauscht in rst_formulas.hpp ---
+echo -n "  FIX 4a: F_TOR=720, F_GATE53=53.33... "
+if grep -q 'constexpr double F_TOR = 53.33333333333333333' "$FILE"; then
+    sed -i 's/constexpr double F_TOR = 53.33333333333333333;        \/\/ Gate 53 (160\/3)/constexpr double F_TOR = 720.00000000000000000;        \/\/ Tor-Referenz [AUDIT-FIX]/' "$FILE"
+    sed -i 's/constexpr double F_GATE = 720.00000000000000000;      \/\/ Tor-Referenz/constexpr double F_GATE53 = 53.33333333333333333;      \/\/ Gate 53 (160\/3) [AUDIT-FIX]/' "$FILE"
+    echo -e "${GREEN}✅ entvertauscht${NC}"
+    FIXES=$((FIXES+1))
+elif grep -q 'constexpr double F_TOR = 720.00000000000000000' "$FILE"; then
+    echo -e "${GREEN}✅ bereits korrekt${NC}"
+else
+    echo -e "${RED}❌ Muster nicht gefunden${NC}"
+    ERRORS=$((ERRORS+1))
+fi
+
+# --- FIX 4b: gravitation() Formel korrigieren ---
+echo -n "  FIX 4b: gravitation() = (F_TOR-f)/F_TOR... "
+if grep -q 'return (F_TOR - f) / F_GATE;' "$FILE"; then
+    sed -i 's/return (F_TOR - f) \/ F_GATE;/return (F_TOR - f) \/ F_TOR;  \/\/ γ(f) = 1 - f\/720 [AUDIT-FIX]/' "$FILE"
+    echo -e "${GREEN}✅ /F_GATE → /F_TOR${NC}"
+    FIXES=$((FIXES+1))
+elif grep -q 'return (F_TOR - f) / F_TOR;' "$FILE"; then
+    echo -e "${GREEN}✅ bereits korrekt${NC}"
+else
+    echo -e "${RED}❌ Muster nicht gefunden${NC}"
+    ERRORS=$((ERRORS+1))
+fi
+
+# --- FIX 5: T_HOTSWAP Kommentar korrigieren ---
+echo -n "  FIX 5: T_HOTSWAP Kommentar... "
+if grep -q '// Hotswap-Fenster = 1 / (F_TOR' "$FILE"; then
+    sed -i 's/\/\/ Hotswap-Fenster = 1 \/ (F_TOR × G3)/\/\/ Hotswap-Fenster = 1 \/ (F_GATE53 × G3) [AUDIT-FIX: war F_TOR, aber Wert passt zu Gate53]/' "$FILE"
+    echo -e "${GREEN}✅ Kommentar korrigiert${NC}"
+    FIXES=$((FIXES+1))
+elif grep -q 'AUDIT-FIX.*Gate53' "$FILE"; then
+    echo -e "${GREEN}✅ bereits korrekt${NC}"
+else
+    echo -e "${YELLOW}⚠ Kommentar-Muster nicht gefunden (optional)${NC}"
+fi
+
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────────────
+# PHASE 3: KOMPILIER-FIXES
+# ───────────────────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[PHASE 3] Kompilier-Fixes${NC}"
+
+# --- FIX 6: main_windows.cpp fehlender include ---
+echo -n "  FIX 6: main_windows.cpp #include <iostream>... "
+FILE="src/cli/main_windows.cpp"
+if [ -f "$FILE" ]; then
+    # Der Non-Windows-Stub nutzt std::cout aber der include ist hinter #ifdef _WIN32
+    # Prüfe ob nach #else ein cout ohne vorherigen include steht
+    if grep -q '#else' "$FILE" && grep -q 'std::cout' "$FILE"; then
+        # Füge include vor dem #else Block ein falls nicht schon vorhanden
+        if ! grep -q '#include <iostream> // AUDIT-FIX' "$FILE"; then
+            sed -i '/#else/{
+                i\#ifndef _WIN32\n#include <iostream>  // AUDIT-FIX: für Non-Windows Stub\n#endif
+            }' "$FILE"
+            # Alternativ: einfacherer Fix - ersetze den Stub
+            # Prüfe ob der sed geklappt hat
+            if g++ -std=c++17 -I include -c "$FILE" -o /dev/null 2>/dev/null; then
+                echo -e "${GREEN}✅ include eingefügt${NC}"
+                FIXES=$((FIXES+1))
+            else
+                # sed war zu komplex, mache es einfacher
+                cp "$BACKUP_DIR/$FILE" "$FILE"
+                # Ersetze den ganzen Non-Windows Block
+                python3 -c "
+import re
+with open('$FILE', 'r') as f:
+    content = f.read()
+# Finde den #else Block und füge iostream ein
+content = content.replace(
+    '#else\n// Non-Windows stub\nint main() {\n    std::cout',
+    '#else\n// Non-Windows stub\n#include <iostream>  // AUDIT-FIX\nint main() {\n    std::cout'
+)
+with open('$FILE', 'w') as f:
+    f.write(content)
+"
+                if g++ -std=c++17 -I include -c "$FILE" -o /dev/null 2>/dev/null; then
+                    echo -e "${GREEN}✅ include eingefügt (Methode 2)${NC}"
+                    FIXES=$((FIXES+1))
+                else
+                    echo -e "${YELLOW}⚠ Windows-only, übersprungen${NC}"
+                    cp "$BACKUP_DIR/$FILE" "$FILE"
+                fi
+            fi
+        else
+            echo -e "${GREEN}✅ bereits gefixt${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ Struktur unerwartet${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ Datei nicht vorhanden${NC}"
+fi
+
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────────────
+# PHASE 4: VERIFIKATION
+# ───────────────────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[PHASE 4] Verifikation${NC}"
+echo ""
+
+# Mathematische Verifikation
+python3 << 'PYVERIFY'
+import math, sys
+
+ok = 0
+fail = 0
+
+def check(name, file, pattern, expected, tolerance=1e-10):
+    global ok, fail
+    import subprocess
+    r = subprocess.run(['grep', pattern, file], capture_output=True, text=True)
+    if r.stdout.strip():
+        # Extrahiere den Zahlenwert
+        import re
+        m = re.search(r'= ([0-9.]+)', r.stdout)
+        if m:
+            val = float(m.group(1))
+            if abs(val - expected) < tolerance:
+                print(f"  ✅ {name}: {val} (Δ={abs(val-expected):.2e})")
+                ok += 1
+            else:
+                print(f"  ❌ {name}: {val} ≠ {expected} (Δ={abs(val-expected):.2e})")
+                fail += 1
+        else:
+            print(f"  ❌ {name}: Wert nicht extrahierbar")
+            fail += 1
+    else:
+        print(f"  ❌ {name}: Muster '{pattern}' nicht gefunden in {file}")
+        fail += 1
+
+print("  === Konstanten-Werte ===")
+check("G_TUNNEL_GAIN", "include/rael/rst_constants.hpp",
+      "G_TUNNEL_GAIN =", math.exp(8/9))
+check("CPU_SPAR (const)", "include/rael/rst_constants.hpp",
+      "CPU_SPAR_FAKTOR =", 2/3, 1e-14)
+check("ETA_DUESE (form)", "include/rael/rst_formulas.hpp",
+      "ETA_DUESE =", 0.5)
+check("F_TOR (form)", "include/rael/rst_formulas.hpp",
+      "constexpr double F_TOR =", 720.0)
+
+print(f"\n  Ergebnis: {ok} OK, {fail} Fehler")
+sys.exit(0 if fail == 0 else 1)
+PYVERIFY
+
+VERIFY_OK=$?
+echo ""
+
+# Konsistenz-Check: alle Dateien synchron?
+echo "  === Konsistenz über alle Header ==="
+python3 << 'PYCONSIST'
+files = {
+    'master': 'include/rael/rael_master_resonance.hpp',
+    'const':  'include/rael/rst_constants.hpp',
+    'form':   'include/rael/rst_formulas.hpp',
+}
+import subprocess
+
+checks = [
+    ("G_TUNNEL_GAIN", "2.43242"),
+    ("ETA_DUESE", "0.5"),
+    ("CPU_SPAR_FAKTOR", "0.666"),
+]
+
+all_ok = True
+for name, expected in checks:
+    vals = {}
+    for label, path in files.items():
+        r = subprocess.run(['grep', f'constexpr.*{name}', path],
+                          capture_output=True, text=True)
+        if r.stdout.strip():
+            line = r.stdout.strip().split('\n')[0]
+            has = expected in line
+            vals[label] = (line.strip()[:60], has)
+        # else: nicht in dieser Datei definiert
+
+    if vals:
+        ok = all(v[1] for v in vals.values())
+        if not ok: all_ok = False
+        status = "✅" if ok else "❌"
+        print(f"  {status} {name}")
+        for label, (line, has) in vals.items():
+            m = "✅" if has else "❌"
+            print(f"      {label:8s}: {m} {line}")
+
+# F_TOR Check
+r1 = subprocess.run(['grep', 'constexpr double F_TOR =', 'include/rael/rst_formulas.hpp'],
+                    capture_output=True, text=True)
+if '720' in r1.stdout:
+    print(f"  ✅ F_TOR=720 in rst_formulas")
+else:
+    print(f"  ❌ F_TOR NICHT 720 in rst_formulas")
+    all_ok = False
+
+print(f"\n  {'ALLE SYNCHRON ✅' if all_ok else 'WIDERSPRÜCHE GEFUNDEN ❌'}")
+PYCONSIST
+
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────────────
+# PHASE 5: KOMPILIER-TEST
+# ───────────────────────────────────────────────────────────────────────────────
+echo -e "${YELLOW}[PHASE 5] Kompilier-Test${NC}"
+
+if command -v g++ &> /dev/null; then
+    SUCCESS=0
+    FAIL=0
+    FAIL_LIST=""
+
+    for f in $(find src -name "*.cpp" ! -name "*.bak" 2>/dev/null); do
+        if g++ -std=c++17 -I include -c "$f" -o /dev/null 2>/dev/null; then
+            SUCCESS=$((SUCCESS+1))
+        else
+            FAIL=$((FAIL+1))
+            FAIL_LIST="$FAIL_LIST  ❌ $(basename $f)\n"
+        fi
+    done
+
+    # Tests
+    TEST_OK=0
+    for f in tests/*.cpp; do
+        if [ -f "$f" ] && g++ -std=c++17 -I include -c "$f" -o /dev/null 2>/dev/null; then
+            TEST_OK=$((TEST_OK+1))
+        fi
+    done
+
+    echo -e "  Source:  ${GREEN}✅ $SUCCESS OK${NC}  ${RED}❌ $FAIL Fehler${NC}"
+    echo -e "  Tests:   ${GREEN}✅ $TEST_OK OK${NC}"
+    if [ -n "$FAIL_LIST" ]; then
+        echo -e "  Fehler-Details:"
+        echo -e "$FAIL_LIST"
+    fi
+else
+    echo -e "  ${YELLOW}⚠ g++ nicht verfügbar, Kompilier-Test übersprungen${NC}"
+fi
+
+echo ""
+
+# ───────────────────────────────────────────────────────────────────────────────
+# ZUSAMMENFASSUNG
+# ───────────────────────────────────────────────────────────────────────────────
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}  ZUSAMMENFASSUNG${NC}"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "  Fixes angewendet: ${GREEN}$FIXES${NC}"
+echo -e "  Fehler:           ${RED}$ERRORS${NC}"
+echo -e "  Backups in:       $BACKUP_DIR"
+echo ""
+echo "  Geänderte Dateien:"
+echo "    • include/rael/rst_constants.hpp  (G_TUNNEL_GAIN, CPU_SPAR_FAKTOR)"
+echo "    • include/rael/rst_formulas.hpp   (ETA_DUESE, F_TOR/F_GATE53, gravitation())"
+echo "    • src/cli/main_windows.cpp        (#include <iostream>)"
+echo ""
+
+if [ $ERRORS -eq 0 ]; then
+    echo -e "${GREEN}  ✅ ALLE KORREKTUREN ERFOLGREICH${NC}"
+    echo ""
+    echo "  Empfohlener Commit:"
+    echo "    git add include/rael/rst_constants.hpp include/rael/rst_formulas.hpp src/cli/main_windows.cpp"
+    echo "    git commit -m 'Audit-Fix: G_TUNNEL_GAIN, ETA_DUESE, CPU_SPAR, F_TOR/F_GATE, gravitation()'"
+else
+    echo -e "${RED}  ❌ $ERRORS FEHLER — manuelle Prüfung nötig${NC}"
+fi
+echo ""
+
+### eof ###
+
