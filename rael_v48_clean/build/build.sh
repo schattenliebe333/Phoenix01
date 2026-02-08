@@ -186,7 +186,21 @@ fi
 # RAEL Security Dashboard (Unified GUI - All Scanners)
 echo "[build] Security Dashboard -> $OUT/rael_dashboard"
 if [[ -f "$ROOT/src/security/rael_dashboard.cpp" ]]; then
-    $CXX $CXXFLAGS "$ROOT/src/security/rael_dashboard.cpp" -o "$OUT/rael_dashboard" -pthread
+    DASH_SOURCES=(
+      "$ROOT/src/security/rael_dashboard.cpp"
+      "$ROOT/src/core/util.cpp"
+      "$ROOT/src/core/telemetry.cpp"
+      "$ROOT/src/core/metrics.cpp"
+      "$ROOT/src/core/events.cpp"
+      "$ROOT/src/core/improvements.cpp"
+      "$ROOT/src/core/shadow_sim.cpp"
+      "$ROOT/src/core/sha256.cpp"
+      "$ROOT/src/core/ethics.cpp"
+      "$ROOT/src/core/ichbin.cpp"
+      "$ROOT/src/core/hotswap.cpp"
+      "$ROOT/src/core/module_manager.cpp"
+    )
+    $CXX $CXXFLAGS "${DASH_SOURCES[@]}" -o "$OUT/rael_dashboard" -pthread -ldl
     echo "[build] Security Dashboard compiled successfully"
 fi
 
