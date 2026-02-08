@@ -1,6 +1,7 @@
 // RAEL V49 - REST/GraphQL API Server Implementation
 #include "rael/api_server.h"
-#include "rael/sha256.h"
+#include "rael/sha256.h"    // → PhiHash backend (V49)
+#include "rael/rst_crypto.hpp" // PhiMAC direkt
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
@@ -263,33 +264,11 @@ std::string JWTAuth::generate(const JWTClaims& claims) {
     std::string header_b64 = base64_encode(header);
     std::string payload_b64 = base64_encode(payload.str());
 
-    // REAL HMAC-SHA256 signature (RFC 2104 compliant)
+    // V49: PhiMAC Signatur (ersetzt HMAC-SHA256)
     std::string sign_input = header_b64 + "." + payload_b64;
-
-    // Prepare key - pad or hash to 64 bytes (SHA256 block size)
-    std::string key = secret_;
-    if (key.size() > 64) {
-        auto hash = SHA256::digest(key);
-        key = std::string(hash.begin(), hash.end());
-    }
-    key.resize(64, 0);
-
-    // Inner and outer padding
-    std::string inner_key(64, 0);
-    std::string outer_key(64, 0);
-    for (size_t i = 0; i < 64; i++) {
-        inner_key[i] = key[i] ^ 0x36;
-        outer_key[i] = key[i] ^ 0x5c;
-    }
-
-    // HMAC = H(outer_key || H(inner_key || message))
-    std::vector<uint8_t> inner_data(inner_key.begin(), inner_key.end());
-    inner_data.insert(inner_data.end(), sign_input.begin(), sign_input.end());
-    auto inner_hash = SHA256::digest(inner_data);
-
-    std::vector<uint8_t> outer_data(outer_key.begin(), outer_key.end());
-    outer_data.insert(outer_data.end(), inner_hash.begin(), inner_hash.end());
-    auto hmac = SHA256::digest(outer_data);
+    auto hmac = crypto::PhiMAC::compute(
+        reinterpret_cast<const uint8_t*>(secret_.data()), secret_.size(),
+        reinterpret_cast<const uint8_t*>(sign_input.data()), sign_input.size());
 
     // Base64URL encode signature (JWT requires URL-safe base64)
     std::string signature(hmac.begin(), hmac.end());
@@ -345,31 +324,11 @@ std::optional<JWTClaims> JWTAuth::verify(const std::string& token) const {
 
     if (parts.size() != 3) return std::nullopt;
 
-    // REAL HMAC-SHA256 verification
+    // V49: PhiMAC Verifikation (ersetzt HMAC-SHA256)
     std::string sign_input = parts[0] + "." + parts[1];
-
-    // Compute expected signature using HMAC-SHA256
-    std::string key = secret_;
-    if (key.size() > 64) {
-        auto hash = SHA256::digest(key);
-        key = std::string(hash.begin(), hash.end());
-    }
-    key.resize(64, 0);
-
-    std::string inner_key(64, 0);
-    std::string outer_key(64, 0);
-    for (size_t i = 0; i < 64; i++) {
-        inner_key[i] = key[i] ^ 0x36;
-        outer_key[i] = key[i] ^ 0x5c;
-    }
-
-    std::vector<uint8_t> inner_data(inner_key.begin(), inner_key.end());
-    inner_data.insert(inner_data.end(), sign_input.begin(), sign_input.end());
-    auto inner_hash = SHA256::digest(inner_data);
-
-    std::vector<uint8_t> outer_data(outer_key.begin(), outer_key.end());
-    outer_data.insert(outer_data.end(), inner_hash.begin(), inner_hash.end());
-    auto expected_hmac = SHA256::digest(outer_data);
+    auto expected_hmac = crypto::PhiMAC::compute(
+        reinterpret_cast<const uint8_t*>(secret_.data()), secret_.size(),
+        reinterpret_cast<const uint8_t*>(sign_input.data()), sign_input.size());
 
     // Decode provided signature
     std::string provided_sig = base64_decode(parts[2]);
