@@ -16,7 +16,8 @@ CXXFLAGS="-std=c++17 -O2 -Wall -Wextra -I$ROOT/include $SECURITY_FLAGS"
 # -pie: Link as PIE (ASLR)
 # -z relro: Partial RELRO (GOT protection)
 # -z now: Full RELRO (immediate binding)
-LDFLAGS="-pie -Wl,-z,relro,-z,now -lssl -lcrypto"
+LDFLAGS="-pie -Wl,-z,relro,-z,now"
+# V49: -lssl -lcrypto ENTFERNT (PhiHash/PhiMAC/PhiKDF ersetzen OpenSSL)
 
 SOURCES=(
   "$ROOT/src/core/util.cpp"

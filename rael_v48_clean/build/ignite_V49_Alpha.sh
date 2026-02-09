@@ -33,7 +33,8 @@ mkdir -p "$OUT" "$MODOUT"
 
 CXX="${CXX:-g++}"
 CXXFLAGS="-std=c++17 -O3 -Wall -Wextra -I$ROOT/include -pthread"
-LDFLAGS="-lssl -lcrypto -pthread"
+LDFLAGS="-pthread"
+# V49: -lssl -lcrypto ENTFERNT (PhiHash/PhiMAC/PhiKDF ersetzen OpenSSL)
 
 # CUDA Detection
 CUDA_AVAILABLE=false

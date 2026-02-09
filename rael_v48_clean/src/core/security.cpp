@@ -1,7 +1,8 @@
 // RAEL V49 - Security Implementation (#30, #31, #32)
 // REAL IMPLEMENTATION - No simulations
 #include "rael/security.h"
-#include "rael/sha256.h"
+#include "rael/sha256.h"    // → PhiHash backend (V49)
+#include "rael/rst_crypto.hpp" // PhiMAC, PhiKDF direkt
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
@@ -770,55 +771,36 @@ std::vector<uint8_t> CryptoProvider::decrypt_rsa(const std::vector<uint8_t>& dat
 }
 
 std::string CryptoProvider::sign(const std::string& data, const std::string& private_key) {
-    // HMAC-based signature using real SHA256
+    // V49: PhiMAC-basierte Signatur (ersetzt HMAC-SHA256)
     return hmac_sha256(data, private_key);
 }
 
 bool CryptoProvider::verify_signature(const std::string& data, const std::string& signature,
                                         const std::string& public_key) {
-    // REAL signature verification
-    // For symmetric signing (HMAC), public_key should match private_key
+    // V49: PhiMAC Verifikation
     std::string expected = hmac_sha256(data, public_key);
     return signature == expected;
 }
 
 std::string CryptoProvider::hash_sha256(const std::string& data) {
-    // REAL SHA-256 implementation
-    auto digest = SHA256::digest(data);
-    return SHA256::hex(digest);
+    // V49: PhiHash (ersetzt NIST SHA-256)
+    auto digest = crypto::PhiHash::hash(data);
+    return crypto::PhiHash::to_hex(digest);
 }
 
 std::string CryptoProvider::hash_sha512(const std::string& data) {
-    // SHA-512 using double SHA-256 (simplified but real hash)
-    auto h1 = SHA256::digest(data);
-    auto h2 = SHA256::digest(data + std::string(h1.begin(), h1.end()));
-    return SHA256::hex(h1) + SHA256::hex(h2);
+    // V49: Doppel-PhiHash (256+256 = 512 bit)
+    auto h1 = crypto::PhiHash::hash(data);
+    auto h2 = crypto::PhiHash::hash(data + std::string(h1.begin(), h1.end()));
+    return crypto::PhiHash::to_hex(h1) + crypto::PhiHash::to_hex(h2);
 }
 
 std::string CryptoProvider::hmac_sha256(const std::string& data, const std::string& key) {
-    // REAL HMAC-SHA256 implementation (RFC 2104)
-    const size_t BLOCK_SIZE = 64;
-
-    // Prepare key
-    std::string k = key;
-    if (k.size() > BLOCK_SIZE) {
-        auto h = SHA256::digest(k);
-        k = std::string(h.begin(), h.end());
-    }
-    while (k.size() < BLOCK_SIZE) k += '\0';
-
-    // Inner and outer padding
-    std::string o_key_pad(BLOCK_SIZE, '\0');
-    std::string i_key_pad(BLOCK_SIZE, '\0');
-    for (size_t i = 0; i < BLOCK_SIZE; i++) {
-        o_key_pad[i] = k[i] ^ 0x5c;
-        i_key_pad[i] = k[i] ^ 0x36;
-    }
-
-    // HMAC = H(o_key_pad || H(i_key_pad || message))
-    auto inner = SHA256::digest(i_key_pad + data);
-    auto outer = SHA256::digest(o_key_pad + std::string(inner.begin(), inner.end()));
-    return SHA256::hex(outer);
+    // V49: PhiMAC (ersetzt RFC 2104 HMAC-SHA256)
+    auto mac = crypto::PhiMAC::compute(
+        reinterpret_cast<const uint8_t*>(key.data()), key.size(),
+        reinterpret_cast<const uint8_t*>(data.data()), data.size());
+    return crypto::PhiHash::to_hex(mac);
 }
 
 std::vector<uint8_t> CryptoProvider::random_bytes(size_t count) {
